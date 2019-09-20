@@ -31,6 +31,24 @@ void tokenize(char* str, const char* delim, char ** argv) {
   }
 }
 
+/**
+ * Use for: Trimming leading and trailing whitespace from a C string
+ * Reference : https://stackoverflow.com/questions/122616/how-do-i-trim-leading-trailing-whitespace-in-a-standard-way
+ */
+char *trimspace(char *str){
+  char *end;
+  // Trim leading space
+  while(isspace((unsigned char)*str)) str++;
+  if(*str == 0)  // All spaces?
+    return str;
+  // Trim trailing space
+  end = str + strlen(str) - 1;
+  while(end > str && isspace((unsigned char)*end)) end--;
+  // Write new null terminator character
+  end[1] = '\0';
+  return str;
+}
+
 
 void scan_line(char *str) {
 	printf("dragonshell > ");
@@ -87,6 +105,19 @@ char *a2path(char *path, char *GLOBAL_PATH) {
   return newpath;
 }
 
+void redirecting(char *file, int mode) {
+  // try redirecting
+  // mode: 0 output to screen
+  // mode: 1 redirecting to file
+  if (mode) {
+    printf("redirecting......");
+    int fd = open(file, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    dup2(fd, 1); //stdout
+    dup2(fd, 2); //stderr
+  }
+  // end trying
+}
+
 bool find_path(char **tests, char *command, char *path) {
   int ok;
   for (size_t i=0; tests[i]; ++i){
@@ -109,7 +140,7 @@ bool find_path(char **tests, char *command, char *path) {
   return ok == 1;
 }
 
-bool excute_external_test_fullpath(char *path, char **args) {
+bool excute_external_test_fullpath(char *path, char **args, int mode, char *filename) {
   int status, ret;
   int p[2];
   // create pipe descriptors
@@ -118,13 +149,7 @@ bool excute_external_test_fullpath(char *path, char **args) {
 
   if (pid == 0) {
 
-    // try redirecting
-    // mode: 0 output to screen
-    // mode: 1 redirecting to file
-    int fd = open("out.txt", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-    dup2(fd, 1); 
-    dup2(fd, 2);
-    // end trying
+    redirecting(filename, mode);
 
     ret = execve(path, args, NULL);
     close(p[0]);
@@ -146,17 +171,17 @@ bool excute_external_test_fullpath(char *path, char **args) {
 }
 
 
-void excute_external(char **args, char *GLOBAL_PATH) {
+void excute_external(char **args, char *GLOBAL_PATH, int mode, char *filename) {
   char *pwd;
   pwd = pwd_command();
 
   // printf("external: command: %s\n", args[0]);
       
-  if (excute_external_test_fullpath(args[0], args)) {
+  if (excute_external_test_fullpath(args[0], args, mode, filename)) {
     // printf("entering full\n");
     free(pwd);
     return;
-  } else if (excute_external_test_fullpath(pwd, args)) {
+  } else if (excute_external_test_fullpath(pwd, args, mode, filename)) {
     // printf("entering pwd\n");
     free(pwd);
     return;
@@ -169,17 +194,18 @@ void excute_external(char **args, char *GLOBAL_PATH) {
     tokenize(globalpath_cpy, ":", tests);
     if (find_path(tests, args[0], path)) {
       // printf("find path ok\n");
-      if (excute_external_test_fullpath(path, args)) {
+      if (excute_external_test_fullpath(path, args, mode, filename)) {
         free(tests);free(path);free(pwd);free(globalpath_cpy);
         return;
       }
     }
     free(tests);free(path);free(pwd);free(globalpath_cpy);
-  } 
+  }
   printf("Dragonshell: %s :command not found\n", args[0]); 
+
 }
 
-void excute_internal(char **args, char *GLOBAL_PATH) {
+void excute_internal(char **args, char *GLOBAL_PATH, int mode, char *filename) {
   char *command = args[0];
   // printf("internal: get command: %s\n", command);
   int status;
@@ -189,6 +215,9 @@ void excute_internal(char **args, char *GLOBAL_PATH) {
   pid_t pid = fork();
   if (pid == 0) {
     //child process
+
+    redirecting(filename, mode);
+
     if (strcmp(command, "pwd") == 0) {
       char *ret;
       ret = pwd_command();
@@ -235,41 +264,42 @@ void excute_internal(char **args, char *GLOBAL_PATH) {
   
 }
 
-// entey for exc single process
-void analyze_single_command(char *line, char *GLOBAL_PATH) { 
+// level 2
+void analyze_single_command(char *line, char *GLOBAL_PATH, int mode, char *filename) { 
   char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
   tokenize(line, " ", args);
 
   char *command = args[0];
   if (strcmp(command, "pwd") == 0 | strcmp(command, "cd") == 0 | (strcmp(command, "a2path") == 0) | strcmp(command, "$PATH") == 0 | strcmp(command, "exit") == 0) {
-    excute_internal(args, GLOBAL_PATH);
+    excute_internal(args, GLOBAL_PATH, mode, filename);
   } else {
-    excute_external(args, GLOBAL_PATH);
+    excute_external(args, GLOBAL_PATH, mode, filename);
   }
   
   free(args);
 }
 
+
+// level 1
+void analyze_redirect_command(char *line, char *GLOBAL_PATH) {
+  char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
+  tokenize(line, ">", args);
+  if (args[2] != NULL) {
+    printf("Dragonshell: Not supporting for output redirection");
+  } else if (args[1] != NULL) {
+    analyze_single_command(trimspace(args[0]), GLOBAL_PATH, 1, trimspace(args[1]));
+  } else {
+    analyze_single_command(trimspace(line), GLOBAL_PATH, 0, NULL);
+  }
+  free(args);
+}
+
+// level 0
 void analyze_multiple_command(char *line) {
   char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
   tokenize(line, ";", args);
 }
 
-
-char *trimspace(char *str){
-  // https://stackoverflow.com/questions/122616/how-do-i-trim-leading-trailing-whitespace-in-a-standard-way
-  char *end;
-  // Trim leading space
-  while(isspace((unsigned char)*str)) str++;
-  if(*str == 0)  // All spaces?
-    return str;
-  // Trim trailing space
-  end = str + strlen(str) - 1;
-  while(end > str && isspace((unsigned char)*end)) end--;
-  // Write new null terminator character
-  end[1] = '\0';
-  return str;
-}
 
 
 void welcome() {
@@ -291,7 +321,7 @@ int main(int argc, char **argv) {
   for (;;){
     char line[TEXTSIZE];
     scan_line(line);
-    analyze_single_command(line, GLOBAL_PATH);
+    analyze_redirect_command(line, GLOBAL_PATH);
 
 
   }
