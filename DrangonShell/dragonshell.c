@@ -105,18 +105,18 @@ char *a2path(char *path, char *GLOBAL_PATH) {
   return newpath;
 }
 
-void redirecting(char *file, int mode) {
-  // try redirecting
-  // mode: 0 output to screen
-  // mode: 1 redirecting to file
-  if (mode) {
-    printf("redirecting......");
-    int fd = open(file, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-    dup2(fd, 1); //stdout
-    dup2(fd, 2); //stderr
-  }
-  // end trying
-}
+// void redirecting(char *file, int mode) {
+//   // try redirecting
+//   // mode: 0 output to screen
+//   // mode: 1 redirecting to file
+//   if (mode) {
+//     int fd = open(file, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+//     dup2(fd, fileno(stdout)); //stdout
+//     dup2(fd, fileno(stderr)); //stderr
+//     close(fd);
+//   }
+//   // end trying
+// }
 
 bool find_path(char **tests, char *command, char *path) {
   int ok;
@@ -140,7 +140,7 @@ bool find_path(char **tests, char *command, char *path) {
   return ok == 1;
 }
 
-bool excute_external_test_fullpath(char *path, char **args, int mode, char *filename) {
+bool excute_external_test_fullpath(char *path, char **args) {
   int status, ret;
   int p[2];
   // create pipe descriptors
@@ -148,9 +148,6 @@ bool excute_external_test_fullpath(char *path, char **args, int mode, char *file
   pid_t pid = fork();
 
   if (pid == 0) {
-
-    redirecting(filename, mode);
-
     ret = execve(path, args, NULL);
     close(p[0]);
     write(p[1], &ret, sizeof(ret));
@@ -170,18 +167,17 @@ bool excute_external_test_fullpath(char *path, char **args, int mode, char *file
   return ret != -1; 
 }
 
-
-void excute_external(char **args, char *GLOBAL_PATH, int mode, char *filename) {
+// create a new precess
+void excute_external(char **args, char *GLOBAL_PATH) {
   char *pwd;
   pwd = pwd_command();
-
   // printf("external: command: %s\n", args[0]);
       
-  if (excute_external_test_fullpath(args[0], args, mode, filename)) {
+  if (excute_external_test_fullpath(args[0], args)) {
     // printf("entering full\n");
     free(pwd);
     return;
-  } else if (excute_external_test_fullpath(pwd, args, mode, filename)) {
+  } else if (excute_external_test_fullpath(pwd, args)) {
     // printf("entering pwd\n");
     free(pwd);
     return;
@@ -194,7 +190,7 @@ void excute_external(char **args, char *GLOBAL_PATH, int mode, char *filename) {
     tokenize(globalpath_cpy, ":", tests);
     if (find_path(tests, args[0], path)) {
       // printf("find path ok\n");
-      if (excute_external_test_fullpath(path, args, mode, filename)) {
+      if (excute_external_test_fullpath(path, args)) {
         free(tests);free(path);free(pwd);free(globalpath_cpy);
         return;
       }
@@ -202,81 +198,83 @@ void excute_external(char **args, char *GLOBAL_PATH, int mode, char *filename) {
     free(tests);free(path);free(pwd);free(globalpath_cpy);
   }
   printf("Dragonshell: %s :command not found\n", args[0]); 
-
 }
 
-void excute_internal(char **args, char *GLOBAL_PATH, int mode, char *filename) {
+// runing in the shell
+void excute_internal(char **args, char *GLOBAL_PATH) {
   char *command = args[0];
   // printf("internal: get command: %s\n", command);
-  int status;
-  int p[2];
-  // create pipe descriptors
-  pipe(p);
-  pid_t pid = fork();
-  if (pid == 0) {
-    //child process
 
-    redirecting(filename, mode);
-
-    if (strcmp(command, "pwd") == 0) {
-      char *ret;
-      ret = pwd_command();
+  if (strcmp(command, "pwd") == 0) {
+    if (args[1]) {
+      printf("Dragonshell: pwd: Too many arguments\n");
+    } else {
+      char *ret = pwd_command();
       printf("%s\n", ret);
       free(ret);
-    } else if (strcmp(command, "$PATH") == 0) {
+    }
+  } else if (strcmp(command, "$PATH") == 0) {
+    if (args[1]) {
+      printf("Dragonshell: $PATH: Too many arguments\n");
+    } else {
       printf("Current PATH: %s\n", GLOBAL_PATH);
-    } else if ((strcmp(command, "a2path") == 0)) {
-      if (args[1]) {
-        char *path;
-        path = a2path(args[1], GLOBAL_PATH);
-        close(p[0]);
-        write(p[1], path, TEXTSIZE);
-        close(p[1]);
-        free(path);
-      }
     }
-    _exit(1);
-
-  } else if (pid > 0){
-    // parent process
-    if((pid = wait(&status)) < 0){
-      perror("wait");
-      _exit(1);
+  } else if ((strcmp(command, "a2path") == 0)) {
+    if (args[1]) {
+      char *path;
+      path = a2path(args[1], GLOBAL_PATH);
+      strcpy(GLOBAL_PATH, path);
+      free(path);
+    } else if (args[2]) {
+      printf("Dragonshell: a2path: Too many arguments\n");
+    } else {
+      printf("Dragonshell: a2path: No path detected\n");
     }
-
-    if ((strcmp(command, "a2path") == 0)) {
-      char path_try[TEXTSIZE];
-      close(p[1]);
-      read(p[0], path_try, TEXTSIZE);
-      close(p[0]);
-      strcpy(GLOBAL_PATH, path_try);
-    } // cd command do in parent process
-      else if (strcmp(command, "cd") == 0) {
+  } else if (strcmp(command, "cd") == 0) {
+    if (args[2] != NULL) {
+      printf("Dragonshell: cd :Too many arguments\n");
+    } else {
       cd_command(args[1]);
-    } // exit command in parent process
-    else if (strcmp(command, "exit") == 0) {
-      _exit(0);
     }
-
-  } else {
-    perror("fork failed");
-  }
-  
+  } else if (strcmp(command, "exit") == 0) {
+    _exit(0);
+  } 
 }
 
-// level 2
-void analyze_single_command(char *line, char *GLOBAL_PATH, int mode, char *filename) { 
+// level 2.5
+void analyze_single_command(char *line, char *GLOBAL_PATH) { 
   char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
   tokenize(line, " ", args);
 
   char *command = args[0];
   if (strcmp(command, "pwd") == 0 | strcmp(command, "cd") == 0 | (strcmp(command, "a2path") == 0) | strcmp(command, "$PATH") == 0 | strcmp(command, "exit") == 0) {
-    excute_internal(args, GLOBAL_PATH, mode, filename);
+    excute_internal(args, GLOBAL_PATH);
   } else {
-    excute_external(args, GLOBAL_PATH, mode, filename);
+    excute_external(args, GLOBAL_PATH);
   }
-  
   free(args);
+}
+
+//level 2
+void redirecting(char *line, char *GLOBAL_PATH, char *filename) {
+  int fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+  if (fd == -1) { 
+    perror("opening file"); 
+    return; 
+  }
+
+  int out = dup(fileno(stdout));
+  if (-1 == dup2(fd, fileno(stdout))) {
+    perror("cannot redirect stdout"); 
+    return; 
+  }
+
+  analyze_single_command(line, GLOBAL_PATH);
+
+  fflush(stdout); 
+  close(fd);
+  dup2(out, fileno(stdout));
+  close(out);
 }
 
 
@@ -286,10 +284,10 @@ void analyze_redirect_command(char *line, char *GLOBAL_PATH) {
   tokenize(line, ">", args);
   if (args[2] != NULL) {
     printf("Dragonshell: Not supporting for output redirection");
-  } else if (args[1] != NULL) {
-    analyze_single_command(trimspace(args[0]), GLOBAL_PATH, 1, trimspace(args[1]));
+  } else if (args[1] != NULL) { //redirecting...
+    redirecting(trimspace(args[0]), GLOBAL_PATH, trimspace(args[1]));
   } else {
-    analyze_single_command(trimspace(line), GLOBAL_PATH, 0, NULL);
+    analyze_single_command(trimspace(line), GLOBAL_PATH);
   }
   free(args);
 }
@@ -299,7 +297,6 @@ void analyze_multiple_command(char *line) {
   char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
   tokenize(line, ";", args);
 }
-
 
 
 void welcome() {
@@ -318,11 +315,11 @@ int main(int argc, char **argv) {
 
   welcome();
   init_globalpath(GLOBAL_PATH);
-  for (;;){
+
+  while (1) {
     char line[TEXTSIZE];
     scan_line(line);
     analyze_redirect_command(line, GLOBAL_PATH);
-
 
   }
 
