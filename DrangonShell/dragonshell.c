@@ -94,8 +94,9 @@ bool find_path(char **tests, char *command, char *path) {
       strcat(path_try, "/");
     }
     strcat(path_try, command);
-    // printf("find path: %s\n", path_try);
+    // printf("try path: %s\n", path_try);
     if (access(path_try, F_OK ) != -1) {
+      // printf("try path: find! %s\n", path_try);
       ok = 1;
       strcpy(path, path_try);
       free(path_try);
@@ -149,18 +150,20 @@ void excute_external(char **args, char *GLOBAL_PATH) {
     free(pwd);
     return;
   } else {
-    // printf("entering search\n");
+    // printf("entering search : globalpath: %s\n", GLOBAL_PATH);
     char **tests = (char**) calloc(LISTEXTSIZE, sizeof(char*));
     char *path = (char*) calloc(TEXTSIZE, sizeof(char));
-    tokenize(GLOBAL_PATH, ":", tests);
+    char *globalpath_cpy = (char*) calloc(TEXTSIZE, sizeof(char));
+    strcpy(globalpath_cpy, GLOBAL_PATH);
+    tokenize(globalpath_cpy, ":", tests);
     if (find_path(tests, args[0], path)) {
       // printf("find path ok\n");
       if (excute_external_test_fullpath(path, args)) {
-        free(tests);free(path);free(pwd);
+        free(tests);free(path);free(pwd);free(globalpath_cpy);
         return;
       }
     }
-    free(tests);free(path);free(pwd);
+    free(tests);free(path);free(pwd);free(globalpath_cpy);
   }
   
   printf("Dragonshell: %s :command not found\n", args[0]); 
