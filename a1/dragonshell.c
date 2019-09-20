@@ -10,7 +10,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-#define TEXTSIZE 1000
+#define TEXTSIZE 500
 #define LISTEXTSIZE 100
 
 /**
@@ -60,7 +60,7 @@ void cd_command(char *dir) {
 }
 
 // TODO : PATH var pass back!!!!!!!!!!!!!!!!!!!!!!!!!
-void a2path(char *path, char *GLOBAL_PATH) {
+char *a2path(char *path, char *GLOBAL_PATH) {
   char *env, **args, *newpath;
   int start;
   args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
@@ -81,11 +81,8 @@ void a2path(char *path, char *GLOBAL_PATH) {
       strcat(newpath, ":");
     }
   }
-  // setenv("PATH", newpath, 1); 
-  strcpy(GLOBAL_PATH, newpath);
-  printf("%s\n", GLOBAL_PATH);
   free(args);
-  free(newpath);
+  return newpath;
 }
 
 bool find_path(char **tests, char *command, char *path) {
@@ -167,10 +164,12 @@ void excute_external(char **args, char *GLOBAL_PATH) {
 }
 
 void excute_internal(char **args, char *GLOBAL_PATH) {
-  pid_t pid = fork();
-  int status;
-
   char *command = args[0];
+  int status;
+  int p[2];
+  // create pipe descriptors
+  pipe(p);
+  pid_t pid = fork();
   if (pid == 0) {
     //child process
     if (strcmp(command, "pwd") == 0) {
@@ -178,13 +177,16 @@ void excute_internal(char **args, char *GLOBAL_PATH) {
       ret = pwd_command();
       printf("%s\n", ret);
       free(ret);
-    } else if (strcmp(command, "cd") == 0) {
-      cd_command(args[1]);
     } else if (strcmp(command, "$PATH") == 0) {
       printf("Current PATH: %s\n", GLOBAL_PATH);
     } else if ((strcmp(command, "a2path") == 0)) {
       if (args[1]) {
-        a2path(args[1], GLOBAL_PATH);
+        char *path;
+        path = a2path(args[1], GLOBAL_PATH);
+        close(p[0]);
+        write(p[1], path, TEXTSIZE);
+        close(p[1]);
+        free(path);
       }
     }
     _exit(1);
@@ -196,9 +198,24 @@ void excute_internal(char **args, char *GLOBAL_PATH) {
       _exit(1);
     }
 
+    if ((strcmp(command, "a2path") == 0)) {
+      char path_try[TEXTSIZE];
+      close(p[1]);
+      read(p[0], path_try, TEXTSIZE);
+      close(p[0]);
+      strcpy(GLOBAL_PATH, path_try);
+    } // cd command do in parent process
+      else if (strcmp(command, "cd") == 0) {
+      cd_command(args[1]);
+    } // exit command in parent process
+    else if (strcmp(command, "exit") == 0) {
+      _exit(0);
+    }
+
   } else {
     perror("fork failed");
   }
+  
 }
 
 // entey for exc single process
@@ -207,12 +224,8 @@ void analyze_single_command(char *line, char *GLOBAL_PATH) {
   tokenize(line, " ", args);
 
   char *command = args[0];
-  if (strcmp(command, "pwd") == 0 | strcmp(command, "cd") == 0 | (strcmp(command, "a2path") == 0) | strcmp(command, "$PATH") == 0) {
+  if (strcmp(command, "pwd") == 0 | strcmp(command, "cd") == 0 | (strcmp(command, "a2path") == 0) | strcmp(command, "$PATH") == 0 | strcmp(command, "exit")) {
     excute_internal(args, GLOBAL_PATH);
-    return;
-  }
-  if ((strcmp(command, "exit") == 0)) {
-    _exit(0);
   } else {
     excute_external(args, GLOBAL_PATH);
   }
