@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/types.h>
+// #include <sys/stat.h>
+#include <fcntl.h>
 #include <sys/wait.h>
 #include <signal.h>
 
@@ -115,6 +117,15 @@ bool excute_external_test_fullpath(char *path, char **args) {
   pid_t pid = fork();
 
   if (pid == 0) {
+
+    // try redirecting
+    // mode: 0 output to screen
+    // mode: 1 redirecting to file
+    int fd = open("out.txt", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+    dup2(fd, 1); 
+    dup2(fd, 2);
+    // end trying
+
     ret = execve(path, args, NULL);
     close(p[0]);
     write(p[1], &ret, sizeof(ret));
@@ -164,8 +175,7 @@ void excute_external(char **args, char *GLOBAL_PATH) {
       }
     }
     free(tests);free(path);free(pwd);free(globalpath_cpy);
-  }
-  
+  } 
   printf("Dragonshell: %s :command not found\n", args[0]); 
 }
 
