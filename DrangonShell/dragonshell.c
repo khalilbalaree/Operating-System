@@ -1,4 +1,4 @@
-#include "dragonshell.h"
+// #include "dragonshell.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <unistd.h>
@@ -67,7 +67,7 @@ char *a2path(char *path, char *GLOBAL_PATH) {
   newpath = (char*) calloc(TEXTSIZE, sizeof(char));
   tokenize(path, ":", args);
   if (strcmp(args[0], "$PATH") == 0) {
-    strcat(newpath, GLOBAL_PATH);
+    strcpy(newpath, GLOBAL_PATH);
     if (args[1]) {
       strcat(newpath, ":");
     }
@@ -89,11 +89,12 @@ bool find_path(char **tests, char *command, char *path) {
   int ok;
   for (size_t i=0; tests[i]; ++i){
     char *path_try = (char*) calloc(TEXTSIZE, sizeof(char));
-    strcat(path_try, tests[i]);
+    strcpy(path_try, tests[i]);
     if (strcmp(&path_try[strlen(path_try)-1], "/") != 0){
       strcat(path_try, "/");
     }
     strcat(path_try, command);
+    // printf("find path: %s\n", path_try);
     if (access(path_try, F_OK ) != -1) {
       ok = 1;
       strcpy(path, path_try);
@@ -136,6 +137,8 @@ bool excute_external_test_fullpath(char *path, char **args) {
 void excute_external(char **args, char *GLOBAL_PATH) {
   char *pwd;
   pwd = pwd_command();
+
+  // printf("external: command: %s\n", args[0]);
       
   if (excute_external_test_fullpath(args[0], args)) {
     // printf("entering full\n");
@@ -165,6 +168,7 @@ void excute_external(char **args, char *GLOBAL_PATH) {
 
 void excute_internal(char **args, char *GLOBAL_PATH) {
   char *command = args[0];
+  // printf("internal: get command: %s\n", command);
   int status;
   int p[2];
   // create pipe descriptors
@@ -224,7 +228,7 @@ void analyze_single_command(char *line, char *GLOBAL_PATH) {
   tokenize(line, " ", args);
 
   char *command = args[0];
-  if (strcmp(command, "pwd") == 0 | strcmp(command, "cd") == 0 | (strcmp(command, "a2path") == 0) | strcmp(command, "$PATH") == 0 | strcmp(command, "exit")) {
+  if (strcmp(command, "pwd") == 0 | strcmp(command, "cd") == 0 | (strcmp(command, "a2path") == 0) | strcmp(command, "$PATH") == 0 | strcmp(command, "exit") == 0) {
     excute_internal(args, GLOBAL_PATH);
   } else {
     excute_external(args, GLOBAL_PATH);
@@ -260,7 +264,7 @@ void welcome() {
 }
 
 void init_globalpath(char *GLOBAL_PATH) {
-  strcat(GLOBAL_PATH, "/bin/:/usr/bin/");
+  strcpy(GLOBAL_PATH, "/bin/:/usr/bin/");
 }
 
 int main(int argc, char **argv) {
