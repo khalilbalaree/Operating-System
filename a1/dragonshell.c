@@ -59,10 +59,6 @@ void cd_command(char *dir) {
   }
 }
 
-void init_globalpath(char *GLOBAL_PATH) {
-  strcat(GLOBAL_PATH, "/bin/:/usr/bin/");
-}
-
 // TODO : PATH var pass back!!!!!!!!!!!!!!!!!!!!!!!!!
 void a2path(char *path, char *GLOBAL_PATH) {
   char *env, **args, *newpath;
@@ -71,12 +67,6 @@ void a2path(char *path, char *GLOBAL_PATH) {
   newpath = (char*) calloc(TEXTSIZE, sizeof(char));
   tokenize(path, ":", args);
   if (strcmp(args[0], "$PATH") == 0) {
-    // env = getenv("PATH");
-    // if (env == NULL) {
-    //   printf("No $PATH found\n");
-    //   return;
-    // }
-    // strcat(newpath, env);
     strcat(newpath, GLOBAL_PATH);
     if (args[1]) {
       strcat(newpath, ":");
@@ -98,94 +88,50 @@ void a2path(char *path, char *GLOBAL_PATH) {
   free(newpath);
 }
 
-
-// bool excute_external_looptest(char * shellpath, char **args) { 
-//   int status, ret;
-//   pid_t pid = fork();
-
-//   char *path = (char*) calloc(TEXTSIZE, sizeof(char));
-//   strcat(path, shellpath);
-//   strcat(path, "/");
-//   strcat(path, args[0]);
-
-//   if (pid == 0) {
-//     // char *argv[] = {"bash", "-c", line,  NULL};
-//     // execve("/bin/bash", argv, NULL);
-//     // char *argv[] = {"touch", "readme.md", line,  NULL};
-//     ret = execve(path, args, NULL);
-//   } else if (pid > 0) {
-//     if((pid = wait(&status)) < 0){
-//       perror("wait");
-//       _exit(1);
-//     }
-//     // if (WIFEXITED(status)){
-//     //   ret = WEXITSTATUS(status);
-//     // }
-//   } else {
-//     perror("fork failed");
-//   }
-//   printf("%s %d\n",shellpath, ret);
-//   free(path);
-//   return ret != -1; 
-// }
-
-bool excute_external_looptest(char **tests, char **args) { 
-  int status, ret;
-  
-
-
+bool find_path(char **tests, char *command, char *path) {
+  int ok;
   for (size_t i=0; tests[i]; ++i){
-    ret = 0;
-    char *path = (char*) calloc(TEXTSIZE, sizeof(char));
-    pid_t pid = fork();
-    printf("child process in loop: [%d]\n", pid);
-    if (pid == 0) {
-        strcat(path, tests[i]);
-        strcat(path, "/");
-        strcat(path, args[0]);
-
-        ret = execve(path, args, NULL);
-      
-    } else if (pid > 0) {
-      printf("parent process in loop: [%d]\n", getpid());
-      if((pid = wait(&status)) < 0){
-        perror("wait");
-      }
-      // exit parent!!!!
-      _exit(1);
-      
-    } else {
-      perror("fork failed");
+    char *path_try = (char*) calloc(TEXTSIZE, sizeof(char));
+    strcat(path_try, tests[i]);
+    if (strcmp(&path_try[strlen(path_try)-1], "/") != 0){
+      strcat(path_try, "/");
     }
-
-    free(path);
-
-    if (ret != -1) {
+    strcat(path_try, command);
+    if (access(path_try, F_OK ) != -1) {
+      ok = 1;
+      strcpy(path, path_try);
+      free(path_try);
       break;
     }
+    free(path_try);
   }
-  return ret != -1;
+  return ok == 1;
 }
-
 
 bool excute_external_test_fullpath(char *path, char **args) {
   int status, ret;
+  int p[2];
+  // create pipe descriptors
+  pipe(p);
   pid_t pid = fork();
 
   if (pid == 0) {
     ret = execve(path, args, NULL);
+    close(p[0]);
+    write(p[1], &ret, sizeof(ret));
+    close(p[1]);
+    _exit(1);
   } else if (pid > 0) {
     if((pid = wait(&status)) < 0){
       perror("wait");
       _exit(1);
     }
-    // if (WIFEXITED(status)){
-    //   ret = WEXITSTATUS(status);
-    // }
+    close(p[1]);
+    read(p[0], &ret, sizeof(ret));
+    close(p[0]);
   } else {
     perror("fork failed");
   }
-  // printf("%d\n",ret);
   return ret != -1; 
 }
 
@@ -195,25 +141,29 @@ void excute_external(char **args, char *GLOBAL_PATH) {
   pwd = pwd_command();
       
   if (excute_external_test_fullpath(args[0], args)) {
-    // printf("entering full");
+    // printf("entering full\n");
     free(pwd);
     return;
   } else if (excute_external_test_fullpath(pwd, args)) {
-    // printf("entering pwd");
+    // printf("entering pwd\n");
     free(pwd);
     return;
   } else {
-    // printf("entering search");
+    // printf("entering search\n");
     char **tests = (char**) calloc(LISTEXTSIZE, sizeof(char*));
+    char *path = (char*) calloc(TEXTSIZE, sizeof(char));
     tokenize(GLOBAL_PATH, ":", tests);
-    bool ret = excute_external_looptest(tests, args);
-    free(tests);
-    free(pwd);
-    if (ret) return;
+    if (find_path(tests, args[0], path)) {
+      // printf("find path ok\n");
+      if (excute_external_test_fullpath(path, args)) {
+        free(tests);free(path);free(pwd);
+        return;
+      }
+    }
+    free(tests);free(path);free(pwd);
   }
-
-  printf("Dragonshell: Cannot excute this command\n");
   
+  printf("Dragonshell: %s :command not found\n", args[0]); 
 }
 
 void excute_internal(char **args, char *GLOBAL_PATH) {
@@ -294,6 +244,10 @@ char *trimspace(char *str){
 
 void welcome() {
   printf("Welcome to Dragon Shell!\n");
+}
+
+void init_globalpath(char *GLOBAL_PATH) {
+  strcat(GLOBAL_PATH, "/bin/:/usr/bin/");
 }
 
 int main(int argc, char **argv) {
