@@ -7,13 +7,14 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <sys/types.h>
-// #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <signal.h>
 
 #define TEXTSIZE 500
 #define LISTEXTSIZE 100
+
+bool volatile skip;
 
 /**
  * @brief Tokenize a C string 
@@ -49,7 +50,6 @@ char *trimspace(char *str){
   return str;
 }
 
-
 void scan_line(char *str) {
 	printf("dragonshell > ");
   if (fgets(str, TEXTSIZE, stdin)) {
@@ -79,7 +79,6 @@ void cd_command(char *dir) {
   }
 }
 
-// TODO : PATH var pass back!!!!!!!!!!!!!!!!!!!!!!!!!
 char *a2path(char *path, char *GLOBAL_PATH) {
   char *env, **args, *newpath;
   int start;
@@ -104,19 +103,6 @@ char *a2path(char *path, char *GLOBAL_PATH) {
   free(args);
   return newpath;
 }
-
-// void redirecting(char *file, int mode) {
-//   // try redirecting
-//   // mode: 0 output to screen
-//   // mode: 1 redirecting to file
-//   if (mode) {
-//     int fd = open(file, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-//     dup2(fd, fileno(stdout)); //stdout
-//     dup2(fd, fileno(stderr)); //stderr
-//     close(fd);
-//   }
-//   // end trying
-// }
 
 bool find_path(char **tests, char *command, char *path) {
   int ok;
@@ -242,7 +228,7 @@ void excute_internal(char **args, char *GLOBAL_PATH) {
   } 
 }
 
-// level 2.5
+// level 3
 void analyze_single_command(char *line, char *GLOBAL_PATH) { 
   char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
   tokenize(line, " ", args);
@@ -256,7 +242,52 @@ void analyze_single_command(char *line, char *GLOBAL_PATH) {
   free(args);
 }
 
-//level 2
+
+//level 2.5
+void piping_process(char *org, char *GLOBAL_PATH, char *dst) {
+  int p[2], status;
+  pipe(p);
+  // printf("c1: %s   c2: %s\n", org, dst);
+
+  if (fork() == 0) { // process 1
+    close(fileno(stdout));
+    dup(p[1]);
+    close(p[0]);
+    close(p[1]); 
+
+    analyze_single_command(org, GLOBAL_PATH);
+    _exit(1);
+  } 
+  if (fork() == 0) { // process 2
+    close(fileno(stdin));
+    dup(p[0]);
+    close(p[1]);
+    close(p[0]);
+
+    analyze_single_command(dst, GLOBAL_PATH);
+    _exit(1);
+  } 
+  close(p[0]);
+  close(p[1]);
+  wait(&status);
+  wait(&status);
+}
+
+// level 2
+void analyze_piping_command(char *line, char *GLOBAL_PATH) {
+  char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
+  tokenize(line, "|", args);
+  if (args[2] != NULL) {
+    printf("Dragonshell: piping: Too many arguments\n");
+  } else if (args[1] != NULL) { //piping...
+    piping_process(trimspace(args[0]), GLOBAL_PATH, trimspace(args[1]));
+  } else {
+    analyze_single_command(trimspace(line), GLOBAL_PATH);
+  }
+  free(args);
+}
+
+// level 1.5
 void redirecting(char *line, char *GLOBAL_PATH, char *filename) {
   int fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
   if (fd == -1) { 
@@ -270,47 +301,13 @@ void redirecting(char *line, char *GLOBAL_PATH, char *filename) {
     return; 
   }
 
-  // call level 2.5
-  analyze_single_command(line, GLOBAL_PATH);
+  analyze_piping_command(line, GLOBAL_PATH);
 
   fflush(stdout); 
   close(fd);
   dup2(out, fileno(stdout));
   close(out);
 }
-
-//level 2
-void piping_process(char *org, char *GLOBAL_PATH, char *dst) {
-  int p[2], status;
-  char ret[TEXTSIZE];
-  pipe(p);
-
-  pid_t pid = fork();
-  if (pid == 0) {
-    close(p[0]);
-    dup2(p[1], fileno(stdout));
-    close(p[1]); 
-    analyze_single_command(org, GLOBAL_PATH);
-    _exit(1);
-  } else if (pid > 0) {
-    if((pid = wait(&status)) < 0){
-      perror("wait");
-      _exit(2);
-    }
-    close(p[1]);
-    read(p[0], &ret, TEXTSIZE);
-    close(p[0]);
-
-    printf("%s\n", ret);
-
-    // TODO: passing to process 2
-
-  } else {
-    perror("fork failed");
-  }
-
-}
-
 
 // level 1
 void analyze_redirect_command(char *line, char *GLOBAL_PATH) {
@@ -321,39 +318,26 @@ void analyze_redirect_command(char *line, char *GLOBAL_PATH) {
   } else if (args[1] != NULL) { //redirecting...
     redirecting(trimspace(args[0]), GLOBAL_PATH, trimspace(args[1]));
   } else {
-    printf("Dragonshell: redirecting: Not enough arguments\n");
+    analyze_piping_command(trimspace(line), GLOBAL_PATH);
   }
   free(args);
 }
 
-// level 1
-void analyze_piping_command(char *line, char *GLOBAL_PATH) {
-  char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
-  tokenize(line, "|", args);
-  if (args[2] != NULL) {
-    printf("Dragonshell: piping: Too many arguments\n");
-  } else if (args[1] != NULL) { //piping...
-    piping_process(trimspace(args[0]), GLOBAL_PATH, trimspace(args[1]));
-  } else {
-    printf("Dragonshell: piping: Not enough arguments\n");
-  }
 
-  free(args);
-}
-
-// level 0.5
-void analyze_one_thread(char *line, char *GLOBAL_PATH){
-  if (strchr(line, '>')) {
-    // printf(">\n");
-    analyze_redirect_command(line, GLOBAL_PATH);
-  } else if (strchr(line, '|')){
-    // printf("|\n");
-    analyze_piping_command(line, GLOBAL_PATH);
-  } else {
-    analyze_single_command(line, GLOBAL_PATH);
+// level 0
+void analyze_multiple_threads(char *line,char *GLOBAL_PATH) {
+  if (strchr(line, ';')) { // multiple 
+    // printf("entering multiple...\n");
+    char **commands = (char**) calloc(LISTEXTSIZE, sizeof(char*));
+    tokenize(line, ";", commands);
+    for (size_t i=0; commands[i]; ++i){
+      analyze_redirect_command(trimspace(commands[i]), GLOBAL_PATH);
+    }
+    free(commands);
+  } else { // single
+    analyze_redirect_command(trimspace(line), GLOBAL_PATH);
   }
 }
-
 
 void welcome() {
   printf("Welcome to Dragon Shell!\n");
@@ -375,7 +359,7 @@ int main(int argc, char **argv) {
   while (1) {
     char line[TEXTSIZE];
     scan_line(line);
-    analyze_one_thread(line, GLOBAL_PATH);
+    analyze_multiple_threads(line, GLOBAL_PATH);
 
   }
 
