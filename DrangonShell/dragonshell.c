@@ -1,4 +1,3 @@
-// #include "dragonshell.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <unistd.h>
@@ -6,15 +5,15 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include <sys/types.h>
 #include <fcntl.h>
-#include <sys/wait.h>
 #include <signal.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 
 #define TEXTSIZE 500
 #define LISTEXTSIZE 100
 
-bool volatile skip;
+int skip;
 
 /**
  * @brief Tokenize a C string 
@@ -339,6 +338,21 @@ void analyze_multiple_threads(char *line,char *GLOBAL_PATH) {
   }
 }
 
+void signal_callback_handler(int signum) {
+	// printf("Caught signal!\n");
+	printf("\n");
+	skip = 1;
+}
+
+void catch_signal() {
+  struct sigaction sa;
+	sa.sa_flags = 0;
+	sigemptyset(&sa.sa_mask);
+	sa.sa_handler = signal_callback_handler;
+	sigaction(SIGINT, &sa, NULL);
+  sigaction(SIGTSTP, &sa, NULL);
+}
+
 void welcome() {
   printf("Welcome to Dragon Shell!\n");
 }
@@ -351,17 +365,24 @@ int main(int argc, char **argv) {
   // print the string prompt without a newline, before beginning to read
   // tokenize the input, run the command(s), and print the result
   // do this in a loop
-  char *line, GLOBAL_PATH[TEXTSIZE];
+  char GLOBAL_PATH[TEXTSIZE],line[TEXTSIZE];
 
   welcome();
   init_globalpath(GLOBAL_PATH);
+  catch_signal();
 
-  while (1) {
-    char line[TEXTSIZE];
+  while (1) { 
+    skip = 0;
     scan_line(line);
-    analyze_multiple_threads(line, GLOBAL_PATH);
 
+    if (feof(stdin)) {
+      printf("\nDragonshell: Exit with ctrl+D\n");
+      return 0;
+    }
+
+    if (!skip) {
+      analyze_multiple_threads(line, GLOBAL_PATH);
+    }
   }
-
   return 0;
 }
