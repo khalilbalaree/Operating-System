@@ -186,6 +186,7 @@ void excute_external(char **args, char *GLOBAL_PATH) {
     char **tests = (char**) calloc(LISTEXTSIZE, sizeof(char*));
     char *path = (char*) calloc(TEXTSIZE, sizeof(char));
     char *globalpath_cpy = (char*) calloc(TEXTSIZE, sizeof(char));
+    // keep GLOBAL_PATH unchange
     strcpy(globalpath_cpy, GLOBAL_PATH);
     tokenize(globalpath_cpy, ":", tests);
     if (find_path(tests, args[0], path)) {
@@ -269,6 +270,7 @@ void redirecting(char *line, char *GLOBAL_PATH, char *filename) {
     return; 
   }
 
+  // call level 2.5
   analyze_single_command(line, GLOBAL_PATH);
 
   fflush(stdout); 
@@ -277,25 +279,79 @@ void redirecting(char *line, char *GLOBAL_PATH, char *filename) {
   close(out);
 }
 
+//level 2
+void piping_process(char *org, char *GLOBAL_PATH, char *dst) {
+  int p[2], status;
+  char ret[TEXTSIZE];
+  pipe(p);
+
+  pid_t pid = fork();
+  if (pid == 0) {
+    close(p[0]);
+    dup2(p[1], fileno(stdout));
+    close(p[1]); 
+    analyze_single_command(org, GLOBAL_PATH);
+    _exit(1);
+  } else if (pid > 0) {
+    if((pid = wait(&status)) < 0){
+      perror("wait");
+      _exit(2);
+    }
+    close(p[1]);
+    read(p[0], &ret, TEXTSIZE);
+    close(p[0]);
+
+    printf("%s\n", ret);
+
+    // TODO: passing to process 2
+
+  } else {
+    perror("fork failed");
+  }
+
+}
+
 
 // level 1
 void analyze_redirect_command(char *line, char *GLOBAL_PATH) {
   char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
   tokenize(line, ">", args);
   if (args[2] != NULL) {
-    printf("Dragonshell: Not supporting for output redirection");
+    printf("Dragonshell: redirecting: Too many arguments\n");
   } else if (args[1] != NULL) { //redirecting...
     redirecting(trimspace(args[0]), GLOBAL_PATH, trimspace(args[1]));
   } else {
-    analyze_single_command(trimspace(line), GLOBAL_PATH);
+    printf("Dragonshell: redirecting: Not enough arguments\n");
   }
   free(args);
 }
 
-// level 0
-void analyze_multiple_command(char *line) {
+// level 1
+void analyze_piping_command(char *line, char *GLOBAL_PATH) {
   char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
-  tokenize(line, ";", args);
+  tokenize(line, "|", args);
+  if (args[2] != NULL) {
+    printf("Dragonshell: piping: Too many arguments\n");
+  } else if (args[1] != NULL) { //piping...
+    piping_process(trimspace(args[0]), GLOBAL_PATH, trimspace(args[1]));
+  } else {
+    printf("Dragonshell: piping: Not enough arguments\n");
+  }
+
+  free(args);
+}
+
+// level 0.5
+void analyze_one_thread(char *line, char *GLOBAL_PATH){
+  if (strchr(line, '>')) {
+    // printf(">\n");
+    analyze_redirect_command(line, GLOBAL_PATH);
+  } else if (strchr(line, '|')){
+    // printf("|\n");
+    analyze_piping_command(line, GLOBAL_PATH);
+  } else {
+    analyze_single_command(line, GLOBAL_PATH);
+  }
 }
 
 
@@ -319,7 +375,7 @@ int main(int argc, char **argv) {
   while (1) {
     char line[TEXTSIZE];
     scan_line(line);
-    analyze_redirect_command(line, GLOBAL_PATH);
+    analyze_one_thread(line, GLOBAL_PATH);
 
   }
 
