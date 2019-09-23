@@ -455,7 +455,6 @@ int main(int argc, char **argv) {
       analyze_background_thread(trimspace(line), GLOBAL_PATH);
     }
       
-    
   }
   return 0;
 }
