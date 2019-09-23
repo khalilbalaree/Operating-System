@@ -144,8 +144,7 @@ bool find_path_loop(char **tests, char *command, char *path) {
   return ok == 1;
 }
 
-void excute_external_test_fullpath(char *path, char **args, int bg) {
-  // printf("excuting external...\n");
+void excute_external_test_fullpath(char *path, char **args, int bg, char *filename) {
   pid_t ppid = getpid();
   // printf("bg :%d\n", bg);
   pid_t pid = fork();
@@ -154,7 +153,12 @@ void excute_external_test_fullpath(char *path, char **args, int bg) {
     // printf("child: %d\n", getpid());
     if (bg == 1) { 
       // reference: https://stackoverflow.com/questions/26453624/hide-terminal-output-from-execve
-      int fd = open("/dev/null", O_WRONLY);
+      int fd;
+      if (filename) {
+        fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+      } else {
+        fd = open("/dev/null", O_WRONLY);
+      }  
       dup2(fd, fileno(stdout));    /* make stdout a copy of fd (> /dev/null) */
       dup2(fd, fileno(stderr));    /* same with stderr */
       dup2(fd, fileno(stdin)); 
@@ -173,15 +177,16 @@ void excute_external_test_fullpath(char *path, char **args, int bg) {
   } else {
     perror("fork failed");
   }
+
 }
 
 // create a new precess
-void excute_external(char **args, char *GLOBAL_PATH, int bg) {
+void excute_external(char **args, char *GLOBAL_PATH, int bg, char *filename) {
   // printf("external: command: %s\n", args[0]);
 
   // 1. try to excute full path
   if (find_path_full(args[0])) {
-    excute_external_test_fullpath(args[0], args, bg);
+    excute_external_test_fullpath(args[0], args, bg, filename);
     return;
   }
   // 2. try to excute from pwd
@@ -191,7 +196,7 @@ void excute_external(char **args, char *GLOBAL_PATH, int bg) {
   strcpy(path_pwd,args[0]);
 
   if (find_path_full(path_pwd)) {
-    excute_external_test_fullpath(pwd, args, bg);
+    excute_external_test_fullpath(pwd, args, bg, filename);
     free(pwd);free(path_pwd);
     return;
   }
@@ -206,7 +211,7 @@ void excute_external(char **args, char *GLOBAL_PATH, int bg) {
   tokenize(globalpath_cpy, ":", tests);
   if (find_path_loop(tests, args[0], path)) {
     // printf("find path ok\n");
-    excute_external_test_fullpath(path, args, bg);
+    excute_external_test_fullpath(path, args, bg, filename);
     free(tests);free(path);free(globalpath_cpy);
     return;
   }
@@ -266,7 +271,7 @@ void analyze_single_command(char *line, char *GLOBAL_PATH) {
   if (strcmp(command, "pwd") == 0 | strcmp(command, "cd") == 0 | (strcmp(command, "a2path") == 0) | strcmp(command, "$PATH") == 0 | strcmp(command, "exit") == 0) {
     excute_internal(args, GLOBAL_PATH);
   } else {
-    excute_external(args, GLOBAL_PATH, 0);
+    excute_external(args, GLOBAL_PATH, 0, NULL);
   }
   free(args);
 }
@@ -378,20 +383,38 @@ void backgrounding(char *line, char *GLOBAL_PATH) {
   if (strcmp(command, "pwd") == 0 | strcmp(command, "cd") == 0 | (strcmp(command, "a2path") == 0) | strcmp(command, "$PATH") == 0 | strcmp(command, "exit") == 0) {
     printf("Drangonshell: &: builtin-commands not supported\n");
   } else {
-    excute_external(args, GLOBAL_PATH, 1);
+    excute_external(args, GLOBAL_PATH, 1, NULL);
   }
 
   free(args);
 }
 
+// level 0.5
+void backgrounding_redirecting(char *line, char *GLOBAL_PATH) {
+  char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
+  tokenize(line, ">", args);
+  if (args[2] != NULL) {
+    printf("Dragonshell: backgrounding&redirecting: Too many arguments\n");
+  } else{
+    char **argss = (char**) calloc(LISTEXTSIZE, sizeof(char*));
+    tokenize(args[0], " ", argss); 
+    excute_external(argss, GLOBAL_PATH, 1, trimspace(args[1]));
+    free(argss);
+  } 
+  free(args);
+
+}
+
 // level 0
 void analyze_background_thread(char *line, char *GLOBAL_PATH) {
   if (strchr(line, '&')) {
-    if (strchr(line, '|') != NULL| strchr(line, '>') != NULL| strchr(line, ';') != NULL) {
+    int size = strlen(line);
+    line[size -1] = '\0';
+    if (strchr(line, '|') != NULL | strchr(line, ';') != NULL) {
       printf("Dragonshell: &: only one command in background\n");
-    } else {
-      int size = strlen(line);
-      line[size -1] = '\0';
+    } else if (strchr(line, '>') != NULL){
+      backgrounding_redirecting(line, GLOBAL_PATH);
+    } else { 
       backgrounding(line, GLOBAL_PATH);
     }
   } else {
