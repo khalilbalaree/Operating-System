@@ -146,7 +146,7 @@ bool find_path_loop(char **tests, char *command, char *path) {
 
 void excute_external_test_fullpath(char *path, char **args, int bg) {
   int status;
-
+  // printf("excuting external...\n");
   pid_t ppid = getpid();
   // printf("bg :%d\n", bg);
   pid_t pid = fork();
@@ -154,6 +154,7 @@ void excute_external_test_fullpath(char *path, char **args, int bg) {
   if (pid == 0) {
     // printf("child: %d\n", getpid());
     if (bg == 1) { 
+      // setsid();
       // reference: https://stackoverflow.com/questions/26453624/hide-terminal-output-from-execve
       printf("PID %d is running in the background\n", getpid());
       int fd = open("/dev/null", O_WRONLY);
@@ -167,11 +168,7 @@ void excute_external_test_fullpath(char *path, char **args, int bg) {
   } else if (pid > 0) {
     // printf("parent: %d\n", ppid);
     if (bg == 0) {
-      // printf("wait...\n");
-      if((pid = wait(&status)) < 0){
-        perror("wait");
-        _exit(1);
-      }  
+      waitpid(pid, 0, 0);
     } 
     
   } else {
@@ -411,7 +408,7 @@ void signal_callback_handler(int signum) {
 }
 
 // reference: signal1.c from eclass
-void catch_signal() {
+void catch_exit_signal() {
   struct sigaction sa;
 	sa.sa_flags = 0;
 	sigemptyset(&sa.sa_mask);
@@ -420,6 +417,7 @@ void catch_signal() {
   sigaction(SIGTSTP, &sa, NULL);
   sigaction(SIGQUIT, &sa, NULL);
 }
+
 
 void welcome() {
   printf("Welcome to Dragon Shell!\n");
@@ -438,7 +436,8 @@ int main(int argc, char **argv) {
 
   welcome();
   init_globalpath(GLOBAL_PATH);
-  catch_signal();
+  catch_exit_signal();
+  // catch_child_exit_signal();
 
   while (1) { 
     skip = 0;
@@ -457,6 +456,8 @@ int main(int argc, char **argv) {
       // analyze_multiple_threads(line, GLOBAL_PATH);
       analyze_background_thread(trimspace(line), GLOBAL_PATH);
     }
+      
+    
   }
   return 0;
 }
