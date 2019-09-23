@@ -49,13 +49,24 @@ char *trimspace(char *str){
   return str;
 }
 
-void scan_line(char *str) {
+/**
+ * @return: 1: normal
+ * @return: 0: ignore
+ * @return: -1: exit program
+ */ 
+int scan_line(char *str) {
 	printf("dragonshell > ");
   if (fgets(str, TEXTSIZE, stdin)) {
-    size_t size = strlen(str);
-    if (size > 1) {
-		  str[size-1] = '\0';
-	  }
+    size_t size = strlen(trimspace(str));
+    if (size > 0) {
+      return 1;
+    } else {
+      return 0;
+    }
+  } else if (feof(stdin)){
+    return -1;
+  } else {
+    return 0;
   }
 }
 
@@ -103,7 +114,15 @@ char *a2path(char *path, char *GLOBAL_PATH) {
   return newpath;
 }
 
-bool find_path(char **tests, char *command, char *path) {
+bool find_path_full(char *path){
+  if (access(path, F_OK ) != -1) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+bool find_path_loop(char **tests, char *command, char *path) {
   int ok;
   for (size_t i=0; tests[i]; ++i){
     char *path_try = (char*) calloc(TEXTSIZE, sizeof(char));
@@ -125,64 +144,79 @@ bool find_path(char **tests, char *command, char *path) {
   return ok == 1;
 }
 
-bool excute_external_test_fullpath(char *path, char **args) {
-  int status, ret;
-  int p[2];
-  // create pipe descriptors
-  pipe(p);
+void excute_external_test_fullpath(char *path, char **args, int bg) {
+  int status;
+
+  pid_t ppid = getpid();
+  // printf("bg :%d\n", bg);
   pid_t pid = fork();
 
   if (pid == 0) {
-    ret = execve(path, args, NULL);
-    close(p[0]);
-    write(p[1], &ret, sizeof(ret));
-    close(p[1]);
+    // printf("child: %d\n", getpid());
+    if (bg == 1) { 
+      // reference: https://stackoverflow.com/questions/26453624/hide-terminal-output-from-execve
+      printf("PID %d is running in the background\n", getpid());
+      int fd = open("/dev/null", O_WRONLY);
+      dup2(fd, 1);    /* make stdout a copy of fd (> /dev/null) */
+      dup2(fd, 2);    /* ...and same with stderr */
+      close(fd);      /* close fd */
+    }
+    // fflush(stdout);
+    execve(path, args, NULL);
     _exit(1);
   } else if (pid > 0) {
-    if((pid = wait(&status)) < 0){
-      perror("wait");
-      _exit(1);
-    }
-    close(p[1]);
-    read(p[0], &ret, sizeof(ret));
-    close(p[0]);
+    // printf("parent: %d\n", ppid);
+    if (bg == 0) {
+      // printf("wait...\n");
+      if((pid = wait(&status)) < 0){
+        perror("wait");
+        _exit(1);
+      }  
+    } 
+    
   } else {
     perror("fork failed");
   }
-  return ret != -1; 
 }
 
 // create a new precess
-void excute_external(char **args, char *GLOBAL_PATH) {
-  char *pwd;
-  pwd = pwd_command();
+void excute_external(char **args, char *GLOBAL_PATH, int bg) {
   // printf("external: command: %s\n", args[0]);
-      
-  if (excute_external_test_fullpath(args[0], args)) {
-    // printf("entering full\n");
-    free(pwd);
+
+  // 1. try to excute full path
+  if (find_path_full(args[0])) {
+    excute_external_test_fullpath(args[0], args, bg);
     return;
-  } else if (excute_external_test_fullpath(pwd, args)) {
-    // printf("entering pwd\n");
-    free(pwd);
-    return;
-  } else {
-    // printf("entering search : globalpath: %s\n", GLOBAL_PATH);
-    char **tests = (char**) calloc(LISTEXTSIZE, sizeof(char*));
-    char *path = (char*) calloc(TEXTSIZE, sizeof(char));
-    char *globalpath_cpy = (char*) calloc(TEXTSIZE, sizeof(char));
-    // keep GLOBAL_PATH unchange
-    strcpy(globalpath_cpy, GLOBAL_PATH);
-    tokenize(globalpath_cpy, ":", tests);
-    if (find_path(tests, args[0], path)) {
-      // printf("find path ok\n");
-      if (excute_external_test_fullpath(path, args)) {
-        free(tests);free(path);free(pwd);free(globalpath_cpy);
-        return;
-      }
-    }
-    free(tests);free(path);free(pwd);free(globalpath_cpy);
   }
+  // 2. try to excute from pwd
+  char *pwd = pwd_command();
+  char *path_pwd = (char*) calloc(TEXTSIZE, sizeof(char));
+  strcpy(path_pwd, pwd);
+  strcpy(path_pwd,args[0]);
+
+  if (find_path_full(path_pwd)) {
+    excute_external_test_fullpath(pwd, args, bg);
+    free(pwd);free(path_pwd);
+    return;
+  }
+  free(pwd);free(path_pwd);
+
+  // 3. try to excute from shell path
+  char **tests = (char**) calloc(LISTEXTSIZE, sizeof(char*));
+  char *path = (char*) calloc(TEXTSIZE, sizeof(char));
+  char *globalpath_cpy = (char*) calloc(TEXTSIZE, sizeof(char));
+  // keep GLOBAL_PATH unchange
+  strcpy(globalpath_cpy, GLOBAL_PATH);
+  tokenize(globalpath_cpy, ":", tests);
+  if (find_path_loop(tests, args[0], path)) {
+    // printf("find path ok\n");
+    excute_external_test_fullpath(path, args, bg);
+    free(tests);free(path);free(globalpath_cpy);
+    return;
+  }
+  free(tests);free(path);free(globalpath_cpy);
+
+  // 4. no path find then printf
   printf("Dragonshell: %s :command not found\n", args[0]); 
 }
 
@@ -227,7 +261,7 @@ void excute_internal(char **args, char *GLOBAL_PATH) {
   } 
 }
 
-// level 3
+// level 4
 void analyze_single_command(char *line, char *GLOBAL_PATH) { 
   char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
   tokenize(line, " ", args);
@@ -236,13 +270,13 @@ void analyze_single_command(char *line, char *GLOBAL_PATH) {
   if (strcmp(command, "pwd") == 0 | strcmp(command, "cd") == 0 | (strcmp(command, "a2path") == 0) | strcmp(command, "$PATH") == 0 | strcmp(command, "exit") == 0) {
     excute_internal(args, GLOBAL_PATH);
   } else {
-    excute_external(args, GLOBAL_PATH);
+    excute_external(args, GLOBAL_PATH, 0);
   }
   free(args);
 }
 
 
-//level 2.5
+//level 3.5
 void piping_process(char *org, char *GLOBAL_PATH, char *dst) {
   int p[2], status;
   pipe(p);
@@ -272,7 +306,7 @@ void piping_process(char *org, char *GLOBAL_PATH, char *dst) {
   wait(&status);
 }
 
-// level 2
+// level 3
 void analyze_piping_command(char *line, char *GLOBAL_PATH) {
   char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
   tokenize(line, "|", args);
@@ -286,7 +320,7 @@ void analyze_piping_command(char *line, char *GLOBAL_PATH) {
   free(args);
 }
 
-// level 1.5
+// level 2.5
 void redirecting(char *line, char *GLOBAL_PATH, char *filename) {
   int fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
   if (fd == -1) { 
@@ -308,7 +342,7 @@ void redirecting(char *line, char *GLOBAL_PATH, char *filename) {
   close(out);
 }
 
-// level 1
+// level 2
 void analyze_redirect_command(char *line, char *GLOBAL_PATH) {
   char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
   tokenize(line, ">", args);
@@ -323,7 +357,7 @@ void analyze_redirect_command(char *line, char *GLOBAL_PATH) {
 }
 
 
-// level 0
+// level 1
 void analyze_multiple_threads(char *line,char *GLOBAL_PATH) {
   if (strchr(line, ';')) { // multiple 
     // printf("entering multiple...\n");
@@ -338,12 +372,45 @@ void analyze_multiple_threads(char *line,char *GLOBAL_PATH) {
   }
 }
 
+// level 0.5
+void backgrounding(char *line, char *GLOBAL_PATH) {
+  // printf("bg func: %s", line);
+  char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
+  tokenize(line, " ", args);
+
+  char *command = args[0];
+  if (strcmp(command, "pwd") == 0 | strcmp(command, "cd") == 0 | (strcmp(command, "a2path") == 0) | strcmp(command, "$PATH") == 0 | strcmp(command, "exit") == 0) {
+    printf("Drangonshell: &: builtin-commands not supported\n");
+  } else {
+    excute_external(args, GLOBAL_PATH, 1);
+  }
+
+  free(args);
+}
+
+// level 0
+void analyze_background_thread(char *line, char *GLOBAL_PATH) {
+  if (strchr(line, '&')) {
+    if (strchr(line, '|') != NULL| strchr(line, '>') != NULL| strchr(line, ';') != NULL) {
+      printf("Dragonshell: &: only one command in background\n");
+    } else {
+      int size = strlen(line);
+      line[size -1] = '\0';
+      backgrounding(line, GLOBAL_PATH);
+    }
+  } else {
+    analyze_multiple_threads(line, GLOBAL_PATH);
+  }
+}
+
+// reference: signal1.c from eclass
 void signal_callback_handler(int signum) {
 	// printf("Caught signal!\n");
 	printf("\n");
 	skip = 1;
 }
 
+// reference: signal1.c from eclass
 void catch_signal() {
   struct sigaction sa;
 	sa.sa_flags = 0;
@@ -351,6 +418,7 @@ void catch_signal() {
 	sa.sa_handler = signal_callback_handler;
 	sigaction(SIGINT, &sa, NULL);
   sigaction(SIGTSTP, &sa, NULL);
+  sigaction(SIGQUIT, &sa, NULL);
 }
 
 void welcome() {
@@ -366,6 +434,7 @@ int main(int argc, char **argv) {
   // tokenize the input, run the command(s), and print the result
   // do this in a loop
   char GLOBAL_PATH[TEXTSIZE],line[TEXTSIZE];
+  int ret;
 
   welcome();
   init_globalpath(GLOBAL_PATH);
@@ -373,15 +442,20 @@ int main(int argc, char **argv) {
 
   while (1) { 
     skip = 0;
-    scan_line(line);
+    ret = scan_line(line);
 
-    if (feof(stdin)) {
+    // printf("%s\n", line);
+
+    if (ret == -1) {
       printf("\nDragonshell: Exit with ctrl+D\n");
       return 0;
+    } else if (ret == 0) {
+      continue;
     }
 
     if (!skip) {
-      analyze_multiple_threads(line, GLOBAL_PATH);
+      // analyze_multiple_threads(line, GLOBAL_PATH);
+      analyze_background_thread(trimspace(line), GLOBAL_PATH);
     }
   }
   return 0;
