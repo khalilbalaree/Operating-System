@@ -155,8 +155,9 @@ void excute_external_test_fullpath(char *path, char **args, int bg) {
     if (bg == 1) { 
       // reference: https://stackoverflow.com/questions/26453624/hide-terminal-output-from-execve
       int fd = open("/dev/null", O_WRONLY);
-      dup2(fd, 1);    /* make stdout a copy of fd (> /dev/null) */
-      dup2(fd, 2);    /* ...and same with stderr */
+      dup2(fd, fileno(stdout));    /* make stdout a copy of fd (> /dev/null) */
+      dup2(fd, fileno(stderr));    /* same with stderr */
+      dup2(fd, fileno(stdin)); 
       close(fd);      /* close fd */
     }
     execve(path, args, NULL);
