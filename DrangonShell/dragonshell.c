@@ -145,7 +145,6 @@ bool find_path_loop(char **tests, char *command, char *path) {
 }
 
 void excute_external_test_fullpath(char *path, char **args, int bg) {
-  int status;
   // printf("excuting external...\n");
   pid_t ppid = getpid();
   // printf("bg :%d\n", bg);
@@ -154,22 +153,21 @@ void excute_external_test_fullpath(char *path, char **args, int bg) {
   if (pid == 0) {
     // printf("child: %d\n", getpid());
     if (bg == 1) { 
-      // setsid();
       // reference: https://stackoverflow.com/questions/26453624/hide-terminal-output-from-execve
-      printf("PID %d is running in the background\n", getpid());
       int fd = open("/dev/null", O_WRONLY);
       dup2(fd, 1);    /* make stdout a copy of fd (> /dev/null) */
       dup2(fd, 2);    /* ...and same with stderr */
       close(fd);      /* close fd */
     }
-    // fflush(stdout);
     execve(path, args, NULL);
     _exit(1);
   } else if (pid > 0) {
     // printf("parent: %d\n", ppid);
     if (bg == 0) {
       waitpid(pid, 0, 0);
-    } 
+    } else {
+      printf("PID %d is running in the background\n", pid);
+    }
     
   } else {
     perror("fork failed");
