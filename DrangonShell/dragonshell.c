@@ -71,13 +71,6 @@ int scan_line(char *str) {
   }
 }
 
-void kill_bg() {
-  if (bg_pid) {
-    printf("Dragonshell: killing background pid: [%zu]\n",bg_pid);
-    kill(bg_pid, SIGKILL); 
-  }
-}
-
 char *pwd_command() { 
   char *buffer = (char*) calloc(TEXTSIZE, sizeof(char));
   if (getcwd(buffer, TEXTSIZE) == NULL) {
@@ -266,7 +259,6 @@ void excute_internal(char **args, char *GLOBAL_PATH) {
       cd_command(args[1]);
     }
   } else if (strcmp(command, "exit") == 0) {
-    kill_bg();
     _exit(0);
   } 
 }
@@ -418,7 +410,7 @@ void backgrounding_redirecting(char *line, char *GLOBAL_PATH) {
 void analyze_background_thread(char *line, char *GLOBAL_PATH) {
   if (strchr(line, '&')) {
     if(bg_pid) {
-      printf("Dragonshell: &: pid=[%zu] is in the background\n", bg_pid);
+      printf("Dragonshell: &: pid=[%zu] has been executed\n", bg_pid);
       return;
     }
     int size = strlen(line);
@@ -481,7 +473,6 @@ int main(int argc, char **argv) {
 
     if (ret == -1) {
       printf("\nDragonshell: Exit with ctrl+D\n");
-      kill_bg();
       return 0;
     } else if (ret == 0) {
       continue;
