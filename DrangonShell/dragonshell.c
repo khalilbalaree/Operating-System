@@ -11,9 +11,10 @@
 #include <sys/wait.h>
 
 #define TEXTSIZE 500
-#define LISTEXTSIZE 100
+#define LISTEXTSIZE 50
 
 int skip;
+size_t bg_pid;
 
 /**
  * @brief Tokenize a C string 
@@ -70,12 +71,18 @@ int scan_line(char *str) {
   }
 }
 
+void kill_bg() {
+  if (bg_pid) {
+    printf("Dragonshell: exit:killing background pid: [%zu]\n",bg_pid);
+    kill(bg_pid, SIGQUIT);
+  }
+}
+
 char *pwd_command() { 
   char *buffer = (char*) calloc(TEXTSIZE, sizeof(char));
   if (getcwd(buffer, TEXTSIZE) == NULL) {
     printf("pwd command failed\n");
   }
-  // free(buffer);
   return buffer;
 }
 
@@ -152,11 +159,11 @@ void excute_external_test_fullpath(char *path, char **args, int bg, char *filena
   if (pid == 0) {
     // printf("child: %d\n", getpid());
     if (bg == 1) { 
-      // reference: https://stackoverflow.com/questions/26453624/hide-terminal-output-from-execve
       int fd;
       if (filename) {
         fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
       } else {
+        // hide output to shell
         fd = open("/dev/null", O_WRONLY);
       }  
       dup2(fd, fileno(stdout));    /* make stdout a copy of fd (> /dev/null) */
@@ -171,6 +178,7 @@ void excute_external_test_fullpath(char *path, char **args, int bg, char *filena
     if (bg == 0) {
       waitpid(pid, 0, 0);
     } else {
+      bg_pid = pid;
       printf("PID %d is running in the background\n", pid);
     }
     
@@ -258,6 +266,7 @@ void excute_internal(char **args, char *GLOBAL_PATH) {
       cd_command(args[1]);
     }
   } else if (strcmp(command, "exit") == 0) {
+    kill_bg();
     _exit(0);
   } 
 }
@@ -408,10 +417,14 @@ void backgrounding_redirecting(char *line, char *GLOBAL_PATH) {
 // level 0
 void analyze_background_thread(char *line, char *GLOBAL_PATH) {
   if (strchr(line, '&')) {
+    if(bg_pid) {
+      printf("Dragonshell: &: pid=[%zu] is in the background\n", bg_pid);
+      return;
+    }
     int size = strlen(line);
     line[size -1] = '\0';
     if (strchr(line, '|') != NULL | strchr(line, ';') != NULL) {
-      printf("Dragonshell: &: only one command in background\n");
+      printf("Dragonshell: &: not supported\n");
     } else if (strchr(line, '>') != NULL){
       backgrounding_redirecting(line, GLOBAL_PATH);
     } else { 
@@ -459,7 +472,6 @@ int main(int argc, char **argv) {
   welcome();
   init_globalpath(GLOBAL_PATH);
   catch_exit_signal();
-  // catch_child_exit_signal();
 
   while (1) { 
     skip = 0;
@@ -469,6 +481,7 @@ int main(int argc, char **argv) {
 
     if (ret == -1) {
       printf("\nDragonshell: Exit with ctrl+D\n");
+      kill_bg();
       return 0;
     } else if (ret == 0) {
       continue;
