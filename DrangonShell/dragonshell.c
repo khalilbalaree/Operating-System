@@ -73,8 +73,8 @@ int scan_line(char *str) {
 
 void kill_bg() {
   if (bg_pid) {
-    printf("Dragonshell: exit:killing background pid: [%zu]\n",bg_pid);
-    kill(bg_pid, SIGQUIT);
+    printf("Dragonshell: killing background pid: [%zu]\n",bg_pid);
+    kill(bg_pid, SIGKILL); 
   }
 }
 
