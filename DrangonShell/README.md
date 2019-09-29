@@ -6,7 +6,10 @@ CCID: 1488834
 
 ## Design details
 
-### 1. Support for triming whitespaces for user inputs
+### 1. General:
+
+1. Support for triming whitespaces for user inputs
+2. Support handling `ˆD` and empty input
 
 ### 2. Five levels' command analysis of user inputs
 
