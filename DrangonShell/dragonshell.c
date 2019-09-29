@@ -90,8 +90,8 @@ void cd_command(char *dir) {
 }
 
 char *a2path(char *path, char *GLOBAL_PATH) {
-  char *env, **args, *newpath;
-  int start;
+  char **args, *newpath;
+  int start = 0;
   args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
   newpath = (char*) calloc(TEXTSIZE, sizeof(char));
   tokenize(path, ":", args);
@@ -123,8 +123,8 @@ bool find_path_full(char *path){
 }
 
 bool find_path_loop(char **tests, char *command, char *path) {
-  int ok;
-  for (size_t i=0; tests[i]; ++i){
+  int ok = 0;
+  for (size_t i=0; tests[i] != NULL; ++i){
     char *path_try = (char*) calloc(TEXTSIZE, sizeof(char));
     strcpy(path_try, tests[i]);
     if (strcmp(&path_try[strlen(path_try)-1], "/") != 0){
@@ -145,7 +145,7 @@ bool find_path_loop(char **tests, char *command, char *path) {
 }
 
 void excute_external_test_fullpath(char *path, char **args, int bg, char *filename) {
-  pid_t ppid = getpid();
+  // pid_t ppid = getpid();
   // printf("bg :%d\n", bg);
   pid_t pid = fork();
 
