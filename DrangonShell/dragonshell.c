@@ -269,7 +269,7 @@ void analyze_single_command(char *line, char *GLOBAL_PATH) {
   tokenize(line, " ", args);
 
   char *command = args[0];
-  if (strcmp(command, "pwd") == 0 | strcmp(command, "cd") == 0 | (strcmp(command, "a2path") == 0) | strcmp(command, "$PATH") == 0 | strcmp(command, "exit") == 0) {
+  if ((strcmp(command, "pwd") == 0) | (strcmp(command, "cd") == 0) | ((strcmp(command, "a2path") == 0)) | (strcmp(command, "$PATH") == 0) | (strcmp(command, "exit") == 0)) {
     excute_internal(args, GLOBAL_PATH);
   } else {
     excute_external(args, GLOBAL_PATH, 0, NULL);
@@ -381,7 +381,7 @@ void backgrounding(char *line, char *GLOBAL_PATH) {
   tokenize(line, " ", args);
 
   char *command = args[0];
-  if (strcmp(command, "pwd") == 0 | strcmp(command, "cd") == 0 | (strcmp(command, "a2path") == 0) | strcmp(command, "$PATH") == 0 | strcmp(command, "exit") == 0) {
+  if ((strcmp(command, "pwd") == 0) | (strcmp(command, "cd") == 0) | ((strcmp(command, "a2path") == 0)) | (strcmp(command, "$PATH") == 0) | (strcmp(command, "exit") == 0)) {
     printf("Drangonshell: &: builtin-commands not supported\n");
   } else {
     excute_external(args, GLOBAL_PATH, 1, NULL);
@@ -415,7 +415,7 @@ void analyze_background_thread(char *line, char *GLOBAL_PATH) {
     }
     int size = strlen(line);
     line[size -1] = '\0';
-    if (strchr(line, '|') != NULL | strchr(line, ';') != NULL) {
+    if ((strchr(line, '|') != NULL) | (strchr(line, ';') != NULL)) {
       printf("Dragonshell: &: not supported\n");
     } else if (strchr(line, '>') != NULL){
       backgrounding_redirecting(line, GLOBAL_PATH);
