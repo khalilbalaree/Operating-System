@@ -4,7 +4,7 @@ SOURCE 	= dragonshell.c
 TARGET	= dragonshell
 OBJ		= dragonshell.o
 
-all: $(TARGET) clean tar
+all: $(TARGET) clean zip
 
 $(TARGET): $(SOURCE)
 	$(CC) $(CFLAGS) -c $(SOURCE) -o $(OBJ)
@@ -13,5 +13,5 @@ $(TARGET): $(SOURCE)
 clean:
 	rm -f $(OBJ)
 
-tar:
-	tar -czvf submit.tar ./README.md ./Makefile ./dragonshell ./dragonshell.c 
+zip:
+	zip dragonshell.zip ./README.md ./Makefile ./dragonshell ./dragonshell.c 

@@ -228,36 +228,36 @@ void excute_internal(char **args, char *GLOBAL_PATH) {
   // printf("internal: get command: %s\n", command);
 
   if (strcmp(command, "pwd") == 0) {
-    if (args[1]) {
-      printf("Dragonshell: pwd: Too many arguments\n");
-    } else {
-      char *ret = pwd_command();
-      printf("%s\n", ret);
-      free(ret);
-    }
+    // if (args[1]) {
+    //   printf("Dragonshell: pwd: Too many arguments\n");
+    // } else {
+    char *ret = pwd_command();
+    printf("%s\n", ret);
+    free(ret);
+    // }
   } else if (strcmp(command, "$PATH") == 0) {
-    if (args[1]) {
-      printf("Dragonshell: $PATH: Too many arguments\n");
-    } else {
-      printf("Current PATH: %s\n", GLOBAL_PATH);
-    }
+    // if (args[1]) {
+    //   printf("Dragonshell: $PATH: Too many arguments\n");
+    // } else {
+    printf("Current PATH: %s\n", GLOBAL_PATH);
+    // }
   } else if ((strcmp(command, "a2path") == 0)) {
     if (args[1]) {
       char *path;
       path = a2path(args[1], GLOBAL_PATH);
       strcpy(GLOBAL_PATH, path);
       free(path);
-    } else if (args[2]) {
-      printf("Dragonshell: a2path: Too many arguments\n");
+    // } else if (args[2]) {
+    //   printf("Dragonshell: a2path: Too many arguments\n");
     } else {
       printf("Dragonshell: a2path: No path detected\n");
     }
   } else if (strcmp(command, "cd") == 0) {
-    if (args[2] != NULL) {
-      printf("Dragonshell: cd :Too many arguments\n");
-    } else {
-      cd_command(args[1]);
-    }
+    // if (args[2] != NULL) {
+    //   printf("Dragonshell: cd :Too many arguments\n");
+    // } else {
+    cd_command(args[1]);
+    // }
   } else if (strcmp(command, "exit") == 0) {
     _exit(0);
   } 
