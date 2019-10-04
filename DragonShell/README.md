@@ -1,4 +1,4 @@
-# CMPUT379 Assignment
+# CMPUT379 Assignment 1
 
 Name: Zijun Wu  
 CCID: 1488834
