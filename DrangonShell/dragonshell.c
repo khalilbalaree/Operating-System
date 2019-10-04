@@ -344,18 +344,46 @@ void redirecting(char *line, char *GLOBAL_PATH, char *filename) {
   close(out);
 }
 
+// handle extra condition
+// level: 2.1
+void redirecting_piping(char *line, char *GLOBAL_PATH) {
+  // printf("redirecting_piping\n");
+  char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
+  tokenize(line, "|", args);
+  if (args[2] != NULL) {
+    printf("Dragonshell: piping: Too many arguments\n");
+  } else {
+    char **argss = (char**) calloc(LISTEXTSIZE, sizeof(char*));
+    tokenize(args[0], ">", argss);
+    redirecting(trimspace(argss[0]), GLOBAL_PATH, trimspace(argss[1]));
+    free(argss);
+    
+    analyze_single_command(trimspace(args[1]), GLOBAL_PATH);
+  }
+  free(args);
+}
+
+
 // level 2
 void analyze_redirect_command(char *line, char *GLOBAL_PATH) {
   char **args = (char**) calloc(LISTEXTSIZE, sizeof(char*));
+  char *line_cpy = (char*) calloc(TEXTSIZE, sizeof(char));
+  strcpy(line_cpy, line);
   tokenize(line, ">", args);
   if (args[2] != NULL) {
     printf("Dragonshell: redirecting: Too many arguments\n");
   } else if (args[1] != NULL) { //redirecting...
-    redirecting(trimspace(args[0]), GLOBAL_PATH, trimspace(args[1]));
+    if (strchr(args[1], '|')){
+      // treat as multiple commands
+      redirecting_piping(line_cpy, GLOBAL_PATH);
+    } else {
+      redirecting(trimspace(args[0]), GLOBAL_PATH, trimspace(args[1]));
+    }
   } else {
     analyze_piping_command(trimspace(line), GLOBAL_PATH);
   }
   free(args);
+  free(line_cpy);
 }
 
 
