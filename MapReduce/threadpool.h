@@ -2,6 +2,7 @@
 #define THREADPOOL_H
 #include <pthread.h>
 #include <stdbool.h>
+#include <sys/stat.h>
 
 // Reference: https://github.com/sysprog21/mapreduce/blob/mapreduce/src/threadpool.c
 
@@ -12,7 +13,7 @@ typedef struct ThreadPool_work_t {
     void *arg;                       // The arguments for the function
     // TODO: Add other members here if needed
     struct ThreadPool_work_t *next;
-    
+    int file_size;
 } ThreadPool_work_t;
 
 typedef struct {
@@ -26,10 +27,12 @@ typedef struct {
     // TODO: Add members here
     pthread_t *threads;
     pthread_mutex_t lock;
+    pthread_cond_t newjob;
     ThreadPool_work_queue_t *queue;
     int thread_size;
     int exit;
-
+    int running;
+    int hasNewJob;
 } ThreadPool_t;
 
 

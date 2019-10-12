@@ -15,8 +15,8 @@ void Map(char *file_name) {
     while (getline(&line, &size, fp) != -1) {
         char *token, *dummy = line;
         while ((token = strsep(&dummy, " \t\n\r")) != NULL)
-            // MR_Emit(token, "1");
-            printf("%s\n", token);
+            MR_Emit(token, "1");
+            // printf("%s\n", token);
     }
     free(line);
     fclose(fp);
@@ -35,5 +35,5 @@ void Reduce(char *key, int partition_number) {
 }
 
 int main(int argc, char *argv[]) {
-    MR_Run(argc - 1, &(argv[1]), Map, 10, Reduce, 10);
+    MR_Run(argc - 1, &(argv[1]), Map, 2, Reduce, 10);
 }
