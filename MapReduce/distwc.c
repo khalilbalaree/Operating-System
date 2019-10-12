@@ -35,5 +35,5 @@ void Reduce(char *key, int partition_number) {
 }
 
 int main(int argc, char *argv[]) {
-    MR_Run(argc - 1, &(argv[1]), Map, 2, Reduce, 10);
+    MR_Run(argc - 1, &(argv[1]), Map, 10, Reduce, 10);
 }

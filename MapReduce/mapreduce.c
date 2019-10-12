@@ -3,6 +3,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
+
+typedef struct KeyValue_M{
+    char *key;
+    char *value;
+    struct KeyValue_M *next;
+} KeyValue_M;
+
+typedef struct {
+    KeyValue_M *head;
+    int size;
+    int number;
+} Partition_M;
+
+typedef struct {
+    pthread_mutex_t lock;
+    Partition_M *partitions;
+} Partition_Pool_M;
 
 int n_rds;
 Partition_Pool_M *pp;

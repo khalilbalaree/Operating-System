@@ -21,11 +21,10 @@ void free_pool_malloc(ThreadPool_t *tp) {
 ThreadPool_work_t *ThreadPool_get_work(ThreadPool_t *tp){
     pthread_mutex_lock(&(tp->lock));
     
-    // // // when tp->exit=1, job has finshed append
-    // while (!tp->hasNewJob && !tp->exit) {
-    //     pthread_cond_wait(&(tp->newjob), &(tp->lock));
-    // }
-    // tp->hasNewJob = 0;
+    // when tp->exit=1, job has finshed append
+    while (queue_isempty(tp->queue) && !tp->exit) {
+        pthread_cond_wait(&(tp->newjob), &(tp->lock));
+    }
     
     if (queue_isempty(tp->queue)) {
         pthread_mutex_unlock(&(tp->lock));
@@ -78,13 +77,11 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
         }
     } else {
         tp->queue->head = tp->queue->tail = work;
+        // notify the worker can grab a job
+        pthread_cond_signal(&(tp->newjob));
     }
 
-    tp->queue->size++;
-     
-    // notify the worker can grab a job
-    // tp->hasNewJob = 1;
-    // pthread_cond_signal(&(tp->newjob));
+    tp->queue->size++; 
     pthread_mutex_unlock(&(tp->lock));
     
     return true;
@@ -93,13 +90,17 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
 void ThreadPool_destroy(ThreadPool_t *tp) {
     printf("destory...\n");
 
-    // pthread_cond_broadcast(&(tp->newjob));
-
+    pthread_mutex_lock(&(tp->lock));
     tp->exit = 1;
+
+    // wake up all worker threads
+    pthread_cond_broadcast(&(tp->newjob));
+    pthread_mutex_unlock(&(tp->lock));
 
     // wait all threads finish
     for (int i=0; i<tp->thread_size; i++) {
         pthread_join(tp->threads[i], NULL);
+        printf("%d Thread finished\n", i);
     }
 
     // free malloc
@@ -114,7 +115,7 @@ ThreadPool_t *ThreadPool_create(int num) {
     pool->threads = (pthread_t *) malloc (sizeof(pthread_t) * num);
     pool->queue = (ThreadPool_work_queue_t *) malloc (sizeof(ThreadPool_work_queue_t));
     pool->thread_size = num;
-    pool->exit = pool->running = pool->hasNewJob = 0;
+    pool->exit = pool->running = 0;
 
     // check for metux and cond
     if (pthread_mutex_init(&(pool->lock), NULL) != 0 || pthread_cond_init(&(pool->newjob), NULL)) {
@@ -153,22 +154,11 @@ void *Thread_run(ThreadPool_t *tp) {
             continue;
         }
 
-        // printf("new job!\n");
         thread_func_t func = work->func;
         void *arg = work->arg;
-        
-        // pthread_mutex_lock(&(tp->lock));
-        tp->running++;
-        printf("start %d\n", tp->running);
-        // pthread_mutex_unlock(&(tp->lock));
 
         // execute
-        (*func)(arg); 
-
-        // pthread_mutex_lock(&(tp->lock));
-        tp->running--;
-        printf("finish %d\n", tp->running);
-        // pthread_mutex_unlock(&(tp->lock));
+        (*func)(arg);
         
     }
 
