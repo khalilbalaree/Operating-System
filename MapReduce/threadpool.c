@@ -20,11 +20,13 @@ void free_pool_malloc(ThreadPool_t *tp) {
 
 ThreadPool_work_t *ThreadPool_get_work(ThreadPool_t *tp){
     pthread_mutex_lock(&(tp->lock));
-    
+
     // when tp->exit=1, job has finshed append
     while (queue_isempty(tp->queue) && !tp->exit) {
         pthread_cond_wait(&(tp->newjob), &(tp->lock));
     }
+
+    printf("get work\n");
     
     if (queue_isempty(tp->queue)) {
         pthread_mutex_unlock(&(tp->lock));
@@ -45,6 +47,8 @@ ThreadPool_work_t *ThreadPool_get_work(ThreadPool_t *tp){
 bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
     pthread_mutex_lock(&(tp->lock));
 
+    printf("add_work\n");
+
     ThreadPool_work_t *work;
     work = (ThreadPool_work_t *) malloc (sizeof(ThreadPool_work_t));
     work->func = func;
@@ -55,8 +59,6 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
     struct stat st;
     stat(arg, &st);
     work->file_size = st.st_size;
-
-    // printf("filesize: %d\n", work->file_size);
 
     if (!queue_isempty(tp->queue)) {
         ThreadPool_work_t *current;
@@ -76,14 +78,17 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
             tp->queue->tail = work;
         }
     } else {
+        // printf("queue is empty\n");
         tp->queue->head = tp->queue->tail = work;
-        // notify the worker can grab a job
         pthread_cond_signal(&(tp->newjob));
     }
 
     tp->queue->size++; 
     pthread_mutex_unlock(&(tp->lock));
     
+    // sleep 1ns for workers to get lock
+    nanosleep((const struct timespec[]){{0, 1L}}, NULL);
+
     return true;
 }
 
@@ -92,7 +97,6 @@ void ThreadPool_destroy(ThreadPool_t *tp) {
 
     pthread_mutex_lock(&(tp->lock));
     tp->exit = 1;
-
     // wake up all worker threads
     pthread_cond_broadcast(&(tp->newjob));
     pthread_mutex_unlock(&(tp->lock));
@@ -159,7 +163,9 @@ void *Thread_run(ThreadPool_t *tp) {
 
         // execute
         (*func)(arg);
-        
+
+        printf("finish\n");
+
     }
 
     pthread_exit(NULL);

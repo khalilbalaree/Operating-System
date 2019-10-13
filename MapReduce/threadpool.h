@@ -32,7 +32,6 @@ typedef struct {
     int thread_size;
     int exit;
     int running;
-    int hasNewJob;
 } ThreadPool_t;
 
 
