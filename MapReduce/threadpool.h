@@ -27,11 +27,10 @@ typedef struct {
     // TODO: Add members here
     pthread_t *threads;
     pthread_mutex_t lock;
-    pthread_cond_t newjob;
+    pthread_cond_t job_immediate;
     ThreadPool_work_queue_t *queue;
     int thread_size;
     int exit;
-    int running;
 } ThreadPool_t;
 
 

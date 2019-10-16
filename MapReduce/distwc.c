@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 void Map(char *file_name) {
     FILE *fp = fopen(file_name, "r");
@@ -35,5 +36,10 @@ void Reduce(char *key, int partition_number) {
 }
 
 int main(int argc, char *argv[]) {
+    clock_t begin = clock();
     MR_Run(argc - 1, &(argv[1]), Map, 10, Reduce, 10);
+    clock_t end = clock();
+    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    printf("time spent: %.4f\n", time_spent);
+    return 0;
 }

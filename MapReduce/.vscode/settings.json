@@ -2,6 +2,8 @@
     "files.associations": {
         "stdlib.h": "c",
         "stdio.h": "c",
-        "iterator": "c"
+        "iterator": "c",
+        "stat.h": "c",
+        "locale": "c"
     }
 }
