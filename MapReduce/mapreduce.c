@@ -20,10 +20,7 @@ typedef struct Key_M{
 typedef struct {
     pthread_mutex_t lock;
     KeyValue_M *head;
-    KeyValue_M *prev;
     Key_M *front;
-    int size;
-    int number;
 } Partition_M;
 
 typedef struct {
@@ -37,14 +34,6 @@ Reducer reducer;
 
 void free_pool_partition_malloc() {
     for (int i=0; i<n_rds;i++) {
-        KeyValue_M *temp;
-        while (pp->partitions[i].head != NULL) {
-            temp = pp->partitions[i].head;
-            pp->partitions[i].head = pp->partitions[i].head->next;
-            free(temp->key);
-            free(temp->value);
-            free(temp);
-        }
         Key_M *temp_k;
         while (pp->partitions[i].front != NULL) {
             temp_k = pp->partitions[i].front;
@@ -52,7 +41,6 @@ void free_pool_partition_malloc() {
             free(temp_k->key);
             free(temp_k);
         }
-        free(pp->partitions[i].prev);
         pthread_mutex_lock(&(pp->partitions[i].lock));
         pthread_mutex_destroy(&(pp->partitions[i].lock));
     }
@@ -65,11 +53,8 @@ Partition_Pool_M *init_Partition() {
     partition_pool = (Partition_Pool_M *) malloc (sizeof(Partition_Pool_M));
     Partition_M *partitions = (Partition_M *) malloc (sizeof(Partition_M) * n_rds);
     for (int i=0;i<n_rds;i++) {
-        partitions[i].number = i;
-        partitions[i].size = 0;
         partitions[i].head = NULL;
         partitions[i].front = NULL;
-        partitions[i].prev = NULL;
         pthread_mutex_init(&(partitions[i].lock), NULL);
     }
 
@@ -138,17 +123,6 @@ void Insert_Partition(int partition_num, char *key, char *value) {
                 }
         }
     }
-    pp->partitions[partition_num].size++;
-
-    // printf("%d: ",partition_num);
-    // Key_M *keys = pp->partitions[partition_num].front;
-    // while (keys != NULL){
-    //     printf("%s->",keys->key);
-    //     keys = keys->next;
-    // }
-    // printf("\n");
-    // // sleep 1ns for workers to get metux
-    // nanosleep((const struct timespec[]){{0, 1L}}, NULL);
 
     pthread_mutex_unlock(&(pp->partitions[partition_num].lock));
 }

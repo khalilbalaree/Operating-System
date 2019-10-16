@@ -151,7 +151,6 @@ ThreadPool_t *ThreadPool_create(int num) {
     return pool;
 }
 
-
 void *Thread_run(ThreadPool_t *tp) {
     // printf("Hello!\n");
     // ThreadPool_t *pool = (ThreadPool_t *)threadpool;
@@ -173,7 +172,6 @@ void *Thread_run(ThreadPool_t *tp) {
         free(work);
 
         // printf("finish\n");
-
     }
 
     pthread_exit(NULL);
