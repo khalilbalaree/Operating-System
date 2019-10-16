@@ -34,13 +34,6 @@ Reducer reducer;
 
 void free_pool_partition_malloc() {
     for (int i=0; i<n_rds;i++) {
-        Key_M *temp_k;
-        while (pp->partitions[i].front != NULL) {
-            temp_k = pp->partitions[i].front;
-            pp->partitions[i].front = pp->partitions[i].front->next;
-            free(temp_k->key);
-            free(temp_k);
-        }
         pthread_mutex_lock(&(pp->partitions[i].lock));
         pthread_mutex_destroy(&(pp->partitions[i].lock));
     }
@@ -68,7 +61,7 @@ void Insert_Partition(int partition_num, char *key, char *value) {
     KeyValue_M *keyVal;  
     keyVal = (KeyValue_M *) malloc (sizeof(KeyValue_M)); 
     keyVal->key = (char*) malloc (sizeof(char)*word_size);
-    keyVal->value =  (char*) malloc (sizeof(char));
+    keyVal->value =  (char*) malloc (sizeof(char)*word_size);
     stpcpy(keyVal->key, key);
     strcpy(keyVal->value, value);
     keyVal->next = NULL;
@@ -145,35 +138,39 @@ void MR_Emit(char *key, char *value) {
 
 void MR_ProcessPartition(int partition_number){
     Partition_M this_partition = pp->partitions[partition_number];
-    Key_M *key_temp = this_partition.front;
-    while (key_temp != NULL) {
-        reducer(key_temp->key, partition_number);
-        // printf("%d : %s\n",partition_number,key_temp->key);
-        key_temp = key_temp->next;
+    Key_M *head;
+    while (this_partition.front != NULL) {
+        reducer(this_partition.front->key, partition_number);
+        head = this_partition.front;
+        this_partition.front = this_partition.front->next;
+        free(head->key);
+        free(head);
     }
 }
 
 char *MR_GetNext(char *key, int partition_number){ 
-    KeyValue_M *temp, *head;
+    KeyValue_M *head;
+    char *value;
     head = pp->partitions[partition_number].head;
     if (head == NULL || strcmp(head->key, key) != 0) {
         return NULL;
     } 
 
-    pthread_mutex_lock(&(pp->partitions[partition_number].lock));
+    // pthread_mutex_lock(&(pp->partitions[partition_number].lock));
+    value = head->value;
     pp->partitions[partition_number].head = head->next;
-    temp = head;
+    free(head->key);
+    free(head->value);
     free(head);
     
-    pthread_mutex_unlock(&(pp->partitions[partition_number].lock));
-    
-    return temp->value;
+    // pthread_mutex_unlock(&(pp->partitions[partition_number].lock));  
+    return value;
 }
 
 void *Thread_partition_run(void *arg) {
     int i = *((int *) arg);
-    MR_ProcessPartition(i);
     free(arg);
+    MR_ProcessPartition(i);
     pthread_exit(NULL);
     return NULL;
 }

@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
     clock_t begin = clock();
     MR_Run(argc - 1, &(argv[1]), Map, 10, Reduce, 10);
     clock_t end = clock();
-    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+    float time_spent = (float)(end - begin) / CLOCKS_PER_SEC;
     printf("time spent: %.2f\n", time_spent);
     return 0;
 }

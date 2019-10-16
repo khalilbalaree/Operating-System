@@ -39,7 +39,6 @@ ThreadPool_work_t *ThreadPool_get_work(ThreadPool_t *tp){
     ThreadPool_work_t *work;
     work = tp->queue->head;
     tp->queue->head = tp->queue->head->next;
-    tp->queue->size--;
 
     pthread_mutex_unlock(&(tp->lock));
 
@@ -90,7 +89,6 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
         pthread_cond_signal(&(tp->job_immediate));
     }
 
-    tp->queue->size++; 
     pthread_mutex_unlock(&(tp->lock));
     
     // // sleep 1ns for workers to get metux
@@ -137,7 +135,6 @@ ThreadPool_t *ThreadPool_create(int num) {
     // init work queue
     pool->queue->head = NULL;
     pool->queue->tail = NULL;
-    pool->queue->size = 0;
 
     for (int i=0; i<pool->thread_size; i++) {
         if (pthread_create(&(pool->threads[i]), NULL, (void *)Thread_run, pool) == 0) {

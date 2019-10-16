@@ -18,7 +18,6 @@ typedef struct ThreadPool_work_t {
 
 typedef struct {
     // TODO: Add members here
-    int size;
     ThreadPool_work_t *head;
     ThreadPool_work_t *tail;
 } ThreadPool_work_queue_t;
