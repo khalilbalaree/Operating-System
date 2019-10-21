@@ -1,10 +1,4 @@
 #include "mapreduce.h"
-#include "threadpool.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <pthread.h>
-#define word_size 20
 
 typedef struct KeyValue_M{
     char *key;
@@ -61,7 +55,7 @@ void Insert_Partition(int partition_num, char *key, char *value) {
     KeyValue_M *keyVal;  
     keyVal = (KeyValue_M *) malloc (sizeof(KeyValue_M)); 
     keyVal->key = (char*) malloc (sizeof(char)*word_size);
-    keyVal->value =  (char*) malloc (sizeof(char)*word_size);
+    keyVal->value =  (char*) malloc (sizeof(char));
     stpcpy(keyVal->key, key);
     strcpy(keyVal->value, value);
     keyVal->next = NULL;

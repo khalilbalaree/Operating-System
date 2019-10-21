@@ -1,5 +1,11 @@
 #ifndef MAPREDUCE_H
 #define MAPREDUCE_H
+#include "threadpool.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#define word_size 20
 
 // function pointer types used by library functions
 typedef void (*Mapper)(char *file_name);

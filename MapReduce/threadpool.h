@@ -1,10 +1,13 @@
 #ifndef THREADPOOL_H
 #define THREADPOOL_H
-#include <pthread.h>
+#include "pthread.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <sys/stat.h>
-
-// Reference: https://github.com/sysprog21/mapreduce/blob/mapreduce/src/threadpool.c
+#include <time.h>
+#include <unistd.h>
 
 typedef void (*thread_func_t)(void *arg);
 

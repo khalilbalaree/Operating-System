@@ -1,11 +1,4 @@
 #include "threadpool.h"
-#include "pthread.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <time.h>
-#include <unistd.h>
 
 bool queue_isempty(ThreadPool_work_queue_t *queue){
     return (queue->head == NULL);
