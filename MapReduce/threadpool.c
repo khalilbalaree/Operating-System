@@ -91,7 +91,7 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
 }
 
 void ThreadPool_destroy(ThreadPool_t *tp) {
-    printf("destory...\n");
+    // printf("destory...\n");
 
     pthread_mutex_lock(&(tp->lock));
     tp->exit = 1;

@@ -6,11 +6,6 @@ typedef struct KeyValue_M{
     struct KeyValue_M *next;
 } KeyValue_M;
 
-// typedef struct Key_M{
-//     char *key;
-//     struct Key_M *next;
-// } Key_M;
-
 typedef struct {
     pthread_mutex_t lock;
     KeyValue_M *head;
@@ -20,14 +15,14 @@ typedef struct {
 typedef struct {
     // pthread_mutex_t lock;
     Partition_M *partitions;
+    Reducer reducer;
+    int num_reducers;
 } Partition_Pool_M;
 
-int n_rds;
 Partition_Pool_M *pp;
-Reducer reducer;
 
 void free_pool_partition_malloc() {
-    for (int i=0; i<n_rds;i++) {
+    for (int i=0; i<pp->num_reducers;i++) {
         pthread_mutex_lock(&(pp->partitions[i].lock));
         pthread_mutex_destroy(&(pp->partitions[i].lock));
     }
@@ -35,13 +30,15 @@ void free_pool_partition_malloc() {
     free(pp);
 }
 
-Partition_Pool_M *init_Partition() {
+Partition_Pool_M *init_Partition(Reducer reducer, int num_reducers) {
     Partition_Pool_M *partition_pool;
     partition_pool = (Partition_Pool_M *) malloc (sizeof(Partition_Pool_M));
-    Partition_M *partitions = (Partition_M *) malloc (sizeof(Partition_M) * n_rds);
-    for (int i=0;i<n_rds;i++) {
+    partition_pool->reducer = reducer;
+    partition_pool->num_reducers = num_reducers;
+
+    Partition_M *partitions = (Partition_M *) malloc (sizeof(Partition_M) * num_reducers);
+    for (int i=0;i<num_reducers;i++) {
         partitions[i].head = NULL;
-        // partitions[i].front = NULL;
         pthread_mutex_init(&(partitions[i].lock), NULL);
     }
 
@@ -65,14 +62,8 @@ void Insert_Partition(int partition_num, char *key, char *value) {
     if (pp->partitions[partition_num].head == NULL) {
         // insert keyval
         pp->partitions[partition_num].head = keyVal;
-        // // insert keys
-        // Key_M *keys = (Key_M *) malloc (sizeof(Key_M));
-        // keys->key = (char*) malloc (sizeof(char)*word_size);
-        // strcpy(keys->key, key);
-        // keys->next = NULL;
-        // pp->partitions[partition_num].front = keys;
     } else {
-        // insert keyval
+        // insert keyval in accending order by keys
         KeyValue_M *current;
         current = pp->partitions[partition_num].head;
         if (strcmp(current->key, key) > 0) {
@@ -85,30 +76,6 @@ void Insert_Partition(int partition_num, char *key, char *value) {
             keyVal->next = current->next;
             current->next = keyVal;
         }
-
-        // // insert keys
-        // Key_M *key_temp = pp->partitions[partition_num].front;
-        // while (key_temp->next != NULL && (strcmp(key_temp->key, key) != 0)) {
-        //     key_temp = key_temp->next;
-        // }
-        // if (strcmp(key_temp->key, key) != 0) {
-        //     Key_M *keys = (Key_M *) malloc (sizeof(Key_M));
-        //     keys->key = (char*) malloc (sizeof(char)*word_size);
-        //     strcpy(keys->key, key);
-        //     keys->next = NULL;
-            
-        //     Key_M *key_temp = pp->partitions[partition_num].front;
-        //     if (strcmp(key_temp->key, key) > 0) {
-        //         keys->next = pp->partitions[partition_num].front;
-        //         pp->partitions[partition_num].front = keys;
-        //     } else {
-        //         while ((key_temp->next != NULL) && (strcmp(key_temp->next->key, key) < 0)) {
-        //             key_temp = key_temp->next;
-        //         }
-        //         keys->next = key_temp->next;
-        //         key_temp->next = keys;
-        //         }
-        // }
     }
 
     pthread_mutex_unlock(&(pp->partitions[partition_num].lock));
@@ -125,25 +92,16 @@ unsigned long MR_Partition(char *key, int num_partitions) {
 
 void MR_Emit(char *key, char *value) {
     // printf("emit: %s\n", key);
-    int partition_num = MR_Partition(key, n_rds);
+    int partition_num = MR_Partition(key, pp->num_reducers);
     // printf("%d\n", partition_num);
     Insert_Partition(partition_num, key, value);
 }
 
 void MR_ProcessPartition(int partition_number){
-    // Partition_M this_partition = pp->partitions[partition_number];
-    // Key_M *head;
-    // while (this_partition.front != NULL) {
-    //     reducer(this_partition.front->key, partition_number);
-    //     head = this_partition.front;
-    //     this_partition.front = this_partition.front->next;
-    //     free(head->key);
-    //     free(head);
-    // }
     while (pp->partitions[partition_number].head != NULL) {
         char *key = (char*) malloc (sizeof(char)*word_size);
         strcpy(key, pp->partitions[partition_number].head->key);
-        reducer(key, partition_number);
+        pp->reducer(key, partition_number);
         free(key);
     }
 }
@@ -156,14 +114,12 @@ char *MR_GetNext(char *key, int partition_number){
         return NULL;
     } 
 
-    // pthread_mutex_lock(&(pp->partitions[partition_number].lock));
     value = head->value;
     pp->partitions[partition_number].head = head->next;
     free(head->key);
     free(head->value);
     free(head);
-    
-    // pthread_mutex_unlock(&(pp->partitions[partition_number].lock));  
+     
     return value;
 }
 
@@ -178,9 +134,7 @@ void *Thread_partition_run(void *arg) {
 
 void MR_Run(int num_files, char *filenames[], Mapper map, int num_mappers, Reducer concate, int num_reducers) {
     // master thread
-    n_rds = num_reducers;
-    pp = init_Partition();
-    reducer = concate;
+    pp = init_Partition(concate, num_reducers);
 
     ThreadPool_t *pool_map;
     pool_map = ThreadPool_create(num_mappers);
