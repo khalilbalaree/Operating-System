@@ -43,7 +43,7 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
         return false;
     }
     // printf("add_work\n");
-
+    
     ThreadPool_work_t *work;
     work = (ThreadPool_work_t *) malloc (sizeof(ThreadPool_work_t));
     work->func = func;
@@ -84,14 +84,14 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
 
     pthread_mutex_unlock(&(tp->lock));
     
-    // // sleep 1ns for workers to get metux
+    // sleep 1ns for workers to get metux
     nanosleep((const struct timespec[]){{0, 1L}}, NULL);
 
     return true;
 }
 
 void ThreadPool_destroy(ThreadPool_t *tp) {
-    // printf("destory...\n");
+    printf("destory...\n");
 
     pthread_mutex_lock(&(tp->lock));
     tp->exit = 1;
