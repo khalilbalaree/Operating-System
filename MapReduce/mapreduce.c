@@ -9,16 +9,15 @@ typedef struct KeyValue_M{
 typedef struct {
     pthread_mutex_t lock;
     KeyValue_M *head;
-    // Key_M *front;
 } Partition_M;
 
 typedef struct {
-    // pthread_mutex_t lock;
     Partition_M *partitions;
     Reducer reducer;
     int num_reducers;
 } Partition_Pool_M;
 
+// global variable partition pool
 Partition_Pool_M *pp;
 
 void free_pool_partition_malloc() {
@@ -51,8 +50,8 @@ void Insert_Partition(int partition_num, char *key, char *value) {
     // printf("%d: %s\n", partition_num,key);
     KeyValue_M *keyVal;  
     keyVal = (KeyValue_M *) malloc (sizeof(KeyValue_M)); 
-    keyVal->key = (char*) malloc (sizeof(char)*word_size);
-    keyVal->value =  (char*) malloc (sizeof(char));
+    keyVal->key = (char*) malloc (strlen(key)+1);
+    keyVal->value =  (char*) malloc (strlen(value)+1);
     stpcpy(keyVal->key, key);
     strcpy(keyVal->value, value);
     keyVal->next = NULL;
@@ -99,7 +98,7 @@ void MR_Emit(char *key, char *value) {
 
 void MR_ProcessPartition(int partition_number){
     while (pp->partitions[partition_number].head != NULL) {
-        char *key = (char*) malloc (sizeof(char)*word_size);
+        char *key = (char*) malloc (strlen(pp->partitions[partition_number].head->key)+1);
         strcpy(key, pp->partitions[partition_number].head->key);
         pp->reducer(key, partition_number);
         free(key);

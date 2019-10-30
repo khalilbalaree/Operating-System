@@ -46,6 +46,9 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
     
     ThreadPool_work_t *work;
     work = (ThreadPool_work_t *) malloc (sizeof(ThreadPool_work_t));
+    if (work == NULL) {
+        return false;
+    }
     work->func = func;
     work->arg = arg;
     work->next = NULL;
