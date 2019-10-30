@@ -13,6 +13,25 @@ void free_pool_malloc(ThreadPool_t *tp) {
     free(tp);
 }
 
+void ThreadPool_destroy(ThreadPool_t *tp) {
+    // printf("destory...\n");
+
+    pthread_mutex_lock(&(tp->lock));
+    tp->exit = 1;
+    // wake up all worker threads
+    pthread_cond_broadcast(&(tp->job_immediate));
+    pthread_mutex_unlock(&(tp->lock));
+
+    // wait all threads finish
+    for (int i=0; i<tp->thread_size; i++) {
+        pthread_join(tp->threads[i], NULL);
+        // printf("%d Thread finished\n", i);
+    }
+
+    // free malloc
+    free_pool_malloc(tp);
+}
+
 ThreadPool_work_t *ThreadPool_get_work(ThreadPool_t *tp){
     pthread_mutex_lock(&(tp->lock));
 
@@ -58,7 +77,8 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
     if (stat(arg, &st) == 0) {
         work->file_size = st.st_size;  
     } else {
-        work->file_size = 0;
+        printf("File error!\n");
+        exit(0);
     }
      
     if (!queue_isempty(tp->queue)) {
@@ -93,24 +113,6 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
     return true;
 }
 
-void ThreadPool_destroy(ThreadPool_t *tp) {
-    // printf("destory...\n");
-
-    pthread_mutex_lock(&(tp->lock));
-    tp->exit = 1;
-    // wake up all worker threads
-    pthread_cond_broadcast(&(tp->job_immediate));
-    pthread_mutex_unlock(&(tp->lock));
-
-    // wait all threads finish
-    for (int i=0; i<tp->thread_size; i++) {
-        pthread_join(tp->threads[i], NULL);
-        // printf("%d Thread finished\n", i);
-    }
-
-    // free malloc
-    free_pool_malloc(tp);
-}
 
 ThreadPool_t *ThreadPool_create(int num) {
     ThreadPool_t *pool;

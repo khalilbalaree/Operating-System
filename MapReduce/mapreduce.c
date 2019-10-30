@@ -1,4 +1,9 @@
 #include "mapreduce.h"
+#include "threadpool.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
 
 typedef struct KeyValue_M{
     char *key;
