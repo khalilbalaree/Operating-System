@@ -17,6 +17,6 @@ clean:
 	rm -f $(OBJ)
 
 compress:
-	zip mapreduce.zip ./README.md ./$(DEPS) ./$(SOURCE) ./$(TARGET)
+	zip mapreduce.zip ./README.md ./Makefile ./$(DEPS) ./$(SOURCE) ./$(TARGET)
 
 	

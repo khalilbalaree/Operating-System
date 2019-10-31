@@ -16,7 +16,7 @@ KeyValue_M *next
 **struct Partition_M: Accending order single linked list contains KeyValue_M**  
 Accending order single linked list with the pointer called head points to the head of the key/value pairs, the algorithm and a metux lock for each partition make sure after each insertion it is in the accending order.
 
-### 3. Partition pool:
+### 3. Partition pool(Global Variable):
 **struct Partition_Pool_M: Arrays of Partition_M**  
 Arrays of Partition_M, and contains the number of reducer and the function of reducer
 
@@ -38,6 +38,16 @@ If there is no idle thread, so they won't take the job from queue before finishe
 1. Metux lock for both add work to and get work from ThreadPool_work_queue_t
 2. A signal will be send when there is a new work added to the empty job queue and worker thread can get it immediately
 
+# Handler functions
+## 1. Insert_Partition(int partition_num, char *key, char *value)
+Called by MR_Emit(), insert the key/value pair into the particular partition correctly.
+
+## 2. Partition_Pool_M *init_Partition(Reducer reducer, int num_reducers)
+Called by MR_Run(), initialize the global variable Partition_Pool *pp before running mappers
+
+## 3. void free_pool_partition_malloc() & void free_pool_malloc(ThreadPool_t *tp)
+Free malloc for both partition pool and thread pool
+
 # Time complexity
 ## 1. MR_Emit
 MR_Emit() first call the function MR_Partition() to get the hash value according to key value, then put this key/value pair to the specific partition structure(Partition_M). Before insertion, the thread should get the metux lock for this partition, then insert the key value to the linked list, the algorithm makes sure after each insertion, the linked list is in accending order according to the key value. For the time complexity, because it is need to finded a right place to insert key, so for a single key, there's a loop to iterate through linked list which takes **O(n)**
@@ -53,16 +63,20 @@ add job
 get job   
 add job  
 get job  
-finish adding  
 add job   
 add job  
+finish adding  
 get job  
 get job 
+
+**Correctness:** there are 2 idle queue initially, so they get the job directly after adding, when there are no idle queue, they are inserted into a job queue by longest-job-first-serve rule
 
 ## 2. Partitions:
 Print the accending order linked list inside one partition given some relatively small jobs  
 Example raw data: a and a and a and a and, output is:  
 a->a->a->a->and->and->and->and  
+
+**Correctness:** by this simple data which can hash to the same partition, the keys are in accending order in the linked list.
 
 # Reference
 1. Hash function provided in assignment pdf

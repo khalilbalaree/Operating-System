@@ -30,7 +30,7 @@ void Reduce(char *key, int partition_number) {
         count++;
     sprintf(name, "result-%d.txt", partition_number);
     FILE *fp = fopen(name, "a");
-    // printf("%s: %d\n", key, count);
+    printf("%s: %d\n", key, count);
     fprintf(fp, "%s: %d\n", key, count);
     fclose(fp);
 }
