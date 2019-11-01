@@ -77,8 +77,10 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
     if (stat(arg, &st) == 0) {
         work->file_size = st.st_size;  
     } else {
-        printf("File error!\n");
-        exit(0);
+        printf("File error! Ignoring file...\n");
+        free(work);
+        pthread_mutex_unlock(&(tp->lock));
+        return true;
     }
      
     if (!queue_isempty(tp->queue)) {
