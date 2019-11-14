@@ -58,11 +58,6 @@ ThreadPool_work_t *ThreadPool_get_work(ThreadPool_t *tp){
 }
 
 bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
-    if (pthread_mutex_lock(&(tp->lock)) != 0) {
-        return false;
-    }
-    // printf("add_work\n");
-    
     ThreadPool_work_t *work;
     work = (ThreadPool_work_t *) malloc (sizeof(ThreadPool_work_t));
     if (work == NULL) {
@@ -79,9 +74,11 @@ bool ThreadPool_add_work(ThreadPool_t *tp, thread_func_t func, void *arg) {
     } else {
         printf("File error! Ignoring file...\n");
         free(work);
-        pthread_mutex_unlock(&(tp->lock));
         return true;
     }
+
+    pthread_mutex_lock(&(tp->lock));
+    // printf("add_work\n");
      
     if (!queue_isempty(tp->queue)) {
         // longest job first serve if no idle thread
