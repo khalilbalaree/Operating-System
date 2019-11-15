@@ -178,7 +178,6 @@ void fs_create(char name[5], int size) {
         fprintf(stderr, "Error: Superblock in disk %s is full, cannot create %s\n", current_info->current_diskname, name);
         return;
     }
-    // printf("index: %d\n", index);
 
     // check name
     int *indexes = getChildIndex(current_info->current_dir);
@@ -188,7 +187,25 @@ void fs_create(char name[5], int size) {
             return;
         }
     }
+    
+    if (size == 0) {
+        printf("%s\n",stringToBinary(super_block->free_block_list));
+        //name
+        memcpy(super_block->inode[index].name, name, strlen(name));
+        printf("name: %s\n", super_block->inode[index].name);
+        //use size
+        super_block->inode[index].used_size = setHighestBit(super_block->inode[index].used_size);
+        printf("use size: %d\n", super_block->inode[index].used_size);
+        //atart block
+        super_block->inode[index].start_block = 0;
+        printf("start block: %d\n", super_block->inode[index].start_block);
+        // dir_parent
+        super_block->inode[index].dir_parent = current_info->current_dir;
+        super_block->inode[index].dir_parent = setHighestBit(super_block->inode[index].dir_parent);
+        printf("dir_parent: %d\n", super_block->inode[index].dir_parent);
+        return;
 
+    }
     // check available block
     int start = 0; // inclusive
     int end = start + size; // exclusive
@@ -214,7 +231,7 @@ void fs_create(char name[5], int size) {
     // set bits in free_block_list
     setBitInRange(super_block->free_block_list, start, end-1);
     printf("%s\n",stringToBinary(super_block->free_block_list));
-    printf("sizeblock: %lu, available: %d, start: %d, end: %d\n", strlen(binary_str), has_abaliable_block, start, end);
+    // printf("sizeblock: %lu, available: %d, start: %d, end: %d, index: %d\n", strlen(binary_str), has_abaliable_block, start, end, index);
     free(binary_str);
     
     if (has_abaliable_block == 0) {
@@ -222,8 +239,20 @@ void fs_create(char name[5], int size) {
         return;
     }
 
+    //name
+    memcpy(super_block->inode[index].name, name, strlen(name));
+    printf("name: %s\n", super_block->inode[index].name);
+    //user size
+    super_block->inode[index].used_size = size;
+    super_block->inode[index].used_size = setHighestBit(super_block->inode[index].used_size);
+    printf("use size: %d\n", super_block->inode[index].used_size);
+    // start block
+    super_block->inode[index].start_block = start;
+    printf("start block: %d\n", super_block->inode[index].start_block);
+    // dir_parent
+    super_block->inode[index].dir_parent = current_info->current_dir;
+    printf("dir_parent: %d\n", super_block->inode[index].dir_parent);
 
-    
-    
+    return;
     
 }

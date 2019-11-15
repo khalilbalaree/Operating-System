@@ -21,6 +21,11 @@ bool isHighestBitSet(uint8_t num){
     return 1 == ((num >> 7) & 1U);
 }
 
+uint8_t setHighestBit(u_int8_t num) {
+    num |= 1UL << 7;
+    return num;
+}
+
 // reference: https://stackoverflow.com/questions/47981/how-do-you-set-clear-and-toggle-a-single-bit
 uint8_t getSizeBit(uint8_t num) {
     num &= ~(1UL << 7);
