@@ -38,7 +38,7 @@ char *trimspace(char *str){
     return str;
 }
 
-int analyze_command(char **args) {
+int analyze_command(char **args, char *line) {
     int size_args = 0;
     while (args[size_args]) {
         size_args += 1;
@@ -63,6 +63,14 @@ int analyze_command(char **args) {
             return 0;
         }
         fs_read(args[1], (int) strtol(args[2], (char **)NULL, 10));
+    } else if (strcmp(args[0], "W") == 0) {
+        if (size_args != 3) {
+            return 0;
+        }
+        fs_write(args[1], (int) strtol(args[2], (char **)NULL, 10));
+    } else if (strcmp(args[0], "B") == 0) {
+        line++;
+        fs_buff((uint8_t*) trimspace(line));
     }
 
     return 1;
@@ -90,11 +98,14 @@ int main(int argc, char *argv[]) {
             continue;
         }
         char **args = (char**) calloc (32, sizeof(char*));
+        char *line_cpy = malloc(strlen(line));
+        strcpy(line_cpy, line); 
         tokenize(trimspace(line), " ", args);
-        if (!analyze_command(args)){
+        if (!analyze_command(args, trimspace(line_cpy))) {
             fprintf(stderr, "Command Error: %s, %d\n", fileName, line_num);
         }
         free(args);
+        free(line_cpy);
         line_num += 1;
     }
 

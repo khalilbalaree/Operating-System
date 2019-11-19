@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #define SizeFreeSpaceList 128
 #define SizeInode 126
+#define SizeKB 1024
 
 
 typedef struct {
@@ -71,8 +72,8 @@ void delete_dir_handler(int index) {
     free(indexes);
 }
 
-void writeToDisk(void) {
-    FILE *fp = fopen(current_info->current_diskname, "wb");
+void saveSuperBlock(void) {
+    FILE *fp = fopen(current_info->current_diskname, "rb+");
     fwrite(&super_block->free_block_list, sizeof(super_block->free_block_list), 1, fp);
     fwrite(&super_block->inode, sizeof(super_block->inode), 1, fp);
     fclose(fp);
@@ -119,6 +120,8 @@ void fs_mount(char *new_disk_name) {
         }
     }
     char *binary_free_list = stringToBinary(new_super_block->free_block_list);
+    printf("freelist: %s\n", binary_free_list);
+    printf("inode: %s\n", binary_str);
     if (strcmp(binary_free_list, binary_str) != 0) {
         fprintf(stderr,"Error: File system in %s is inconsistent (error code: 1)\n", new_disk_name);
         free(binary_str);
@@ -228,7 +231,7 @@ void fs_create(char name[5], int size) {
         }
     }
 
-    printf("Inode index: %d\n", index);
+    // printf("Inode index: %d\n", index);
 
     if (index == -1) {
         fprintf(stderr, "Error: Superblock in disk %s is full, cannot create %s\n", current_info->current_diskname, name);
@@ -269,6 +272,8 @@ void fs_create(char name[5], int size) {
         super_block->inode[index].dir_parent = current_info->current_dir;
         super_block->inode[index].dir_parent = setHighestBit(super_block->inode[index].dir_parent);
         printf("dir_parent: %d\n", super_block->inode[index].dir_parent);
+
+        saveSuperBlock();
         return;
 
     }
@@ -319,6 +324,9 @@ void fs_create(char name[5], int size) {
     super_block->inode[index].dir_parent = current_info->current_dir;
     printf("dir_parent: %d\n", super_block->inode[index].dir_parent);
 
+    // save
+    saveSuperBlock();
+
     return;   
 }
 
@@ -342,9 +350,8 @@ void fs_delete(char name[5]) {
     }
 
     delete_dir_handler(index);
-
-    //write into disk
-
+    // save
+    saveSuperBlock();
 }
 
 void fs_read(char name[5], int block_num) {
@@ -376,8 +383,46 @@ void fs_read(char name[5], int block_num) {
     int real_block = start + block_num;
     // printf("%d\n", real_block);
     FILE *fp = fopen(current_info->current_diskname, "rb");
-    fseek(fp, real_block * 1024, SEEK_SET);
+    fseek(fp, real_block * SizeKB, SEEK_SET);
     fread(current_info->buffer, sizeof(current_info->buffer), 1, fp);
+    // printf("%s\n", current_info->buffer);
     fclose(fp);
+}
 
+void fs_write(char name[5], int block_num) {
+    if (super_block == NULL) {
+        fprintf(stderr,"Error: No file system is mounted\n");
+        return;
+    }
+
+    int index = -1;
+    for (int i=0; i<SizeInode; i++) {
+        if ((strncmp(super_block->inode[i].name, name, 5) == 0) 
+            && (getSizeBit(super_block->inode[i].dir_parent) == current_info->current_dir) 
+            && (!isHighestBitSet(super_block->inode[i].dir_parent))){
+            index = i;
+            break;
+        }
+    }
+    if (index == -1) {
+        fprintf(stderr, "Error: File %s does not exist\n", name);
+        return;
+    }
+    int size = getSizeBit(super_block->inode[index].used_size);
+    if (block_num > size-1) {
+        fprintf(stderr, "Error: %s does not have block %d\n", name, block_num);
+        return;
+    }
+    int start = super_block->inode[index].start_block;
+    int real_block = start + block_num;
+    // printf("real block: %d\n", real_block);
+    // printf("%s\n", current_info->buffer);
+    FILE *fp = fopen(current_info->current_diskname, "rb+");
+    fseek(fp, real_block * SizeKB, SEEK_SET);
+    fwrite(current_info->buffer, sizeof(current_info->buffer), 1, fp);
+    fclose(fp);
+}
+
+void fs_buff(uint8_t buff[1024]) {
+    memcpy(current_info->buffer, buff, 1024 * sizeof(uint8_t));
 }

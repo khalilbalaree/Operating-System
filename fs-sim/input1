@@ -1,4 +1,5 @@
-M disk1
-C fil1 2
-C fil1 1
-R fil1 1
+M disk0
+B I am zijunwu
+D file1
+C file1 10
+W file1 6
