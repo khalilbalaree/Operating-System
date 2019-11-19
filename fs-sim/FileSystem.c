@@ -10,11 +10,77 @@
 typedef struct {
     uint8_t current_dir;
     char *current_diskname;
-    FILE *fp;
+    uint8_t buffer[1024];
 } Current_info;
 
 Current_info *current_info;
 Super_block *super_block;
+
+//helper func
+int *getChildIndex_handler(uint8_t index) {
+    // -1 as null terminater
+    int *indexes = (int*) malloc (sizeof(int)*SizeInode);
+    int p = 0;
+    for (int i=0; i<SizeInode; i++) {
+        // should be in use
+        if ((getSizeBit(super_block->inode[i].dir_parent) == index) & isHighestBitSet(super_block->inode[i].used_size)) {
+            indexes[p] = i;
+            p += 1;
+        }
+    }
+    indexes[p] = -1;
+    return indexes;
+}
+
+void delete_file_handler(int index) {
+    int start = super_block->inode[index].start_block;
+    int size = getSizeBit(super_block->inode[index].used_size);
+    // printf("%d %d\n",start, start+size-1);
+    printf("Deleting file %s\n", super_block->inode[index].name);
+    setBitInRange(super_block->free_block_list, start, start+size-1, 0);
+    memset(super_block->inode[index].name, 0, sizeof(super_block->inode[index].name));
+    super_block->inode[index].used_size = 0;
+    super_block->inode[index].start_block = 0;
+    super_block->inode[index].dir_parent = 0;
+}
+
+void delete_empty_dir(int index) {
+    printf("Deleting empty dir %s\n", super_block->inode[index].name);
+    memset(super_block->inode[index].name, 0, sizeof(super_block->inode[index].name));
+    super_block->inode[index].used_size = 0;
+    super_block->inode[index].start_block = 0;
+    super_block->inode[index].dir_parent = 0;
+}
+
+void delete_dir_handler(int index) {
+    //TODO: need test
+    if (!isHighestBitSet(super_block->inode[index].dir_parent)) {
+        delete_file_handler(index);
+        return;
+    }
+    int *indexes = getChildIndex_handler(index);
+    if (indexes[0] == -1) {
+        //empty dir
+        delete_empty_dir(index);
+        free(indexes);
+        return;
+    } 
+    for (int i=0; indexes[i] != -1; i++) {
+        delete_dir_handler(indexes[i]);
+    }
+    free(indexes);
+}
+
+void writeToDisk(void) {
+    FILE *fp = fopen(current_info->current_diskname, "wb");
+    fwrite(&super_block->free_block_list, sizeof(super_block->free_block_list), 1, fp);
+    fwrite(&super_block->inode, sizeof(super_block->inode), 1, fp);
+    fclose(fp);
+}
+
+//helper function ends
+
+
 
 void fs_mount(char *new_disk_name) {
     FILE *fp = fopen(new_disk_name, "rb");
@@ -25,6 +91,7 @@ void fs_mount(char *new_disk_name) {
     Super_block *new_super_block = (Super_block*) malloc (sizeof(Super_block));
     fread(&new_super_block->free_block_list, sizeof(new_super_block->free_block_list), 1, fp);
     fread(&new_super_block->inode, sizeof(new_super_block->inode), 1, fp);
+    fclose(fp);
 
     // check consistancy 1  
     char *binary_str = (char*) malloc (SizeFreeSpaceList+1); 
@@ -142,23 +209,9 @@ void fs_mount(char *new_disk_name) {
     char *current_diskname = malloc (sizeof(new_disk_name)+1);
     strcpy(current_diskname, new_disk_name);
     temp_info->current_diskname = current_diskname;
-    temp_info->fp = fp;
     current_info = temp_info;
 }
 
-int *getChildIndex(uint8_t index) {
-    int *indexes = (int*) malloc (sizeof(int)*SizeInode);
-    int start = 0;
-    for (int i=0; i<SizeInode; i++) {
-        if (getSizeBit(super_block->inode[i].dir_parent) == index) {
-            indexes[start] = i;
-        } else {
-            indexes[start] = -1;
-        }
-        start += 1;
-    }
-    return indexes;
-}
 
 void fs_create(char name[5], int size) {
     if (super_block == NULL) {
@@ -174,20 +227,33 @@ void fs_create(char name[5], int size) {
             break;
         }
     }
+
+    printf("Inode index: %d\n", index);
+
     if (index == -1) {
         fprintf(stderr, "Error: Superblock in disk %s is full, cannot create %s\n", current_info->current_diskname, name);
         return;
     }
 
     // check name
-    int *indexes = getChildIndex(current_info->current_dir);
-    for (int i=0; indexes[i]!=-1; i++) {  
-        if (strcmp(super_block->inode[indexes[i]].name, name) == 0){
+    if ((strcmp(name, ".") == 0) || (strcmp(name,"..") == 0 || strlen(name) == 0 || strlen(name) > 5)) {
+        fprintf(stderr, "Error: File or directory %s name is invalid\n",name);
+        return;
+    }
+
+    int *indexes = getChildIndex_handler(current_info->current_dir);
+    for (int i=0; indexes[i] != -1; i++) {
+        // printf("filename: %d %s\n", i, super_block->inode[i].name);
+        //ref: https://stackoverflow.com/questions/18437430/comparing-non-null-terminated-char-arrays
+        if (strncmp(super_block->inode[i].name, name, 5) == 0){
             fprintf(stderr, "Error: File or directory %s already exists\n",name);
+            free(indexes);
             return;
         }
     }
+    free(indexes);
     
+    // create dir
     if (size == 0) {
         printf("%s\n",stringToBinary(super_block->free_block_list));
         //name
@@ -227,18 +293,18 @@ void fs_create(char name[5], int size) {
             end += 1;
         }     
     }
-    
-    // set bits in free_block_list
-    setBitInRange(super_block->free_block_list, start, end-1);
-    printf("%s\n",stringToBinary(super_block->free_block_list));
-    // printf("sizeblock: %lu, available: %d, start: %d, end: %d, index: %d\n", strlen(binary_str), has_abaliable_block, start, end, index);
-    free(binary_str);
-    
+
     if (has_abaliable_block == 0) {
         fprintf(stderr, "Error: Cannot allocate %d on %s\n", size, current_info->current_diskname);
         return;
     }
-
+    
+    // set bits in free_block_list
+    setBitInRange(super_block->free_block_list, start, end-1, 1);
+    printf("%s\n",stringToBinary(super_block->free_block_list));
+    // printf("sizeblock: %lu, available: %d, start: %d, end: %d, index: %d\n", strlen(binary_str), has_abaliable_block, start, end, index);
+    free(binary_str);
+    
     //name
     memcpy(super_block->inode[index].name, name, strlen(name));
     printf("name: %s\n", super_block->inode[index].name);
@@ -253,6 +319,65 @@ void fs_create(char name[5], int size) {
     super_block->inode[index].dir_parent = current_info->current_dir;
     printf("dir_parent: %d\n", super_block->inode[index].dir_parent);
 
-    return;
-    
+    return;   
+}
+
+
+void fs_delete(char name[5]) {
+    if (super_block == NULL) {
+        fprintf(stderr,"Error: No file system is mounted\n");
+        return;
+    }
+
+    int index = -1;
+    for (int i=0; i<SizeInode; i++) {
+        if (strncmp(super_block->inode[i].name, name, 5) == 0){
+            index = i;
+            break;
+        }
+    }
+    if (index == -1) {
+        fprintf(stderr, "Error: File or directory %s does not exist\n", name);
+        return;
+    }
+
+    delete_dir_handler(index);
+
+    //write into disk
+
+}
+
+void fs_read(char name[5], int block_num) {
+    if (super_block == NULL) {
+        fprintf(stderr,"Error: No file system is mounted\n");
+        return;
+    }
+
+    int index = -1;
+    for (int i=0; i<SizeInode; i++) {
+        if ((strncmp(super_block->inode[i].name, name, 5) == 0) 
+            && (getSizeBit(super_block->inode[i].dir_parent) == current_info->current_dir) 
+            && (!isHighestBitSet(super_block->inode[i].dir_parent))){
+            index = i;
+            break;
+        }
+    }
+    if (index == -1) {
+        fprintf(stderr, "Error: File %s does not exist\n", name);
+        return;
+    }
+
+    int size = getSizeBit(super_block->inode[index].used_size);
+    if (block_num > size-1) {
+        fprintf(stderr, "Error: %s does not have block %d\n", name, block_num);
+        return;
+    }
+    int start = super_block->inode[index].start_block;
+    int real_block = start + block_num;
+    // printf("%d\n", real_block);
+    FILE *fp = fopen(current_info->current_diskname, "rb");
+    fseek(fp, real_block * 1024, SEEK_SET);
+    fread(current_info->buffer, sizeof(current_info->buffer), 1, fp);
+    fclose(fp);
+
 }

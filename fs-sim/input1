@@ -1,3 +1,4 @@
 M disk1
-C file 10
-C file 20
+C fil1 2
+C fil1 1
+R fil1 1

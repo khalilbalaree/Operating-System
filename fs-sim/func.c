@@ -32,7 +32,7 @@ uint8_t getSizeBit(uint8_t num) {
     return num;
 }
 
-void setBitInRange(char *s, int start, int end) {
+void setBitInRange(char *s, int start, int end, int type) {
     // strlen(s) = 16
     // start and end are both inclusive
     int i = start / 8;
@@ -43,21 +43,37 @@ void setBitInRange(char *s, int start, int end) {
         // same char
         char *ch = &s[i];
         for (int k=7-j_mod; k<=7-i_mod; k++) {
-            *ch |= (1 << k);
+            if (type) {
+                *ch |= (1UL << k);
+            } else {
+                *ch &= ~(1UL << k);
+            }
         }
     } else {
         // diff char
         char *ch1 = &s[i];
         char *ch2 = &s[j];
         for (int k=0; k<=7-i_mod; k++) {
-            *ch1 |= (1 << k);
+            if (type) {
+                *ch1 |= (1UL << k);
+            } else {
+                *ch1 &= ~(1UL << k);
+            }
         }
         for (int k=7-j_mod; k<=7; k++){
-            *ch2 |= (1 << k);
+            if (type) {
+                *ch2 |= (1UL << k);
+            } else {
+                *ch2 &= ~(1UL << k);
+            }
         }
         if (j-i>1) {
             for (int k=i+1; k<j; k++) {
-                s[k] = 0xFF;
+                if (type) {
+                    s[k] = 0xFF;
+                } else {
+                    s[k] = 0x0;
+                }
             }
         }
     }

@@ -39,7 +39,7 @@ char *trimspace(char *str){
 }
 
 int analyze_command(char **args) {
-    int size_args = 1;
+    int size_args = 0;
     while (args[size_args]) {
         size_args += 1;
     }
@@ -53,6 +53,16 @@ int analyze_command(char **args) {
             return 0;
         }
         fs_create(args[1], (int) strtol(args[2], (char **)NULL, 10));
+    } else if (strcmp(args[0], "D") == 0) {
+        if (size_args != 2) {
+            return 0;
+        }
+        fs_delete(args[1]);
+    } else if (strcmp(args[0], "R") == 0) {
+        if (size_args != 3) {
+            return 0;
+        }
+        fs_read(args[1], (int) strtol(args[2], (char **)NULL, 10));
     }
 
     return 1;
@@ -79,7 +89,7 @@ int main(int argc, char *argv[]) {
             line_num += 1;
             continue;
         }
-        char **args = (char**) malloc(32*sizeof(char*));
+        char **args = (char**) calloc (32, sizeof(char*));
         tokenize(trimspace(line), " ", args);
         if (!analyze_command(args)){
             fprintf(stderr, "Command Error: %s, %d\n", fileName, line_num);
