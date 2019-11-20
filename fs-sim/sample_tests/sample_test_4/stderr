@@ -21,5 +21,5 @@ Command Error: trivial-input, 52
 Command Error: trivial-input, 53
 Error: File test cannot expand to size 125
 Error: Cannot allocate 125 on clean_disk
-Error: File or directory test already exist
+Error: File or directory test already exists
 Error: test does not have block 3

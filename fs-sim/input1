@@ -1,5 +1,7 @@
 M disk0
 B I am zijunwu
 D file1
-C file1 10
+C file1 0
 W file1 6
+C file2 10
+L

@@ -71,15 +71,24 @@ int analyze_command(char **args, char *line) {
     } else if (strcmp(args[0], "B") == 0) {
         line++;
         fs_buff((uint8_t*) trimspace(line));
+    } else if (strcmp(args[0], "L") == 0) {
+        if (size_args != 1) {
+            return 0;
+        }
+        fs_ls();
     }
 
     return 1;
 }
 
 int main(int argc, char *argv[]) {
+    if (argv[1] == NULL) {
+        printf("No input file!\n");
+        return 0;
+    }
     char const* const fileName = argv[1];
     if (argv[2] != NULL) {
-        printf("Too many inputfiles!\n");
+        printf("Too many input files!\n");
         return 0;
     }
     FILE* file = fopen(fileName, "r");

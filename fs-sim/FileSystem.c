@@ -120,8 +120,8 @@ void fs_mount(char *new_disk_name) {
         }
     }
     char *binary_free_list = stringToBinary(new_super_block->free_block_list);
-    printf("freelist: %s\n", binary_free_list);
-    printf("inode: %s\n", binary_str);
+    // printf("freelist: %s\n", binary_free_list);
+    // printf("inode: %s\n", binary_str);
     if (strcmp(binary_free_list, binary_str) != 0) {
         fprintf(stderr,"Error: File system in %s is inconsistent (error code: 1)\n", new_disk_name);
         free(binary_str);
@@ -424,5 +424,33 @@ void fs_write(char name[5], int block_num) {
 }
 
 void fs_buff(uint8_t buff[1024]) {
+    if (super_block == NULL) {
+        fprintf(stderr,"Error: No file system is mounted\n");
+        return;
+    }
     memcpy(current_info->buffer, buff, 1024 * sizeof(uint8_t));
+}
+
+void fs_ls(void) {
+    if (super_block == NULL) {
+        fprintf(stderr,"Error: No file system is mounted\n");
+        return;
+    }
+    int *indexes = getChildIndex_handler(current_info->current_dir);
+    for (int i=0; indexes[i] != -1; i++) {
+        if (isHighestBitSet(super_block->inode[i].dir_parent)) {
+            // dir
+            int num_child = 2;
+            int *idx = getChildIndex_handler(getSizeBit(super_block->inode[i].dir_parent));
+            for (int j=0; idx[j] != -1; j++) {
+                if (isHighestBitSet(super_block->inode[j].dir_parent)) {
+                    num_child += 1;
+                }
+            }
+            printf("%-5s %3d\n", super_block->inode[i].name, num_child);
+        } else {
+            printf("%-5s %3d KB\n", super_block->inode[i].name, getSizeBit(super_block->inode[i].used_size));
+        }
+    }
+
 }
