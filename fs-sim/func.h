@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <stdint.h>
 
 char *stringToBinary(char *s);
 bool isHighestBitSet(uint8_t num);

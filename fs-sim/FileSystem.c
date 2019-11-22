@@ -37,17 +37,17 @@ void delete_file_handler(int index) {
     int start = super_block->inode[index].start_block;
     int size = getSizeBit(super_block->inode[index].used_size);
     // printf("%d %d\n",start, start+size-1);
-    printf("Deleting file %s\n", super_block->inode[index].name);
+    printf("Deleting file %.5s\n", super_block->inode[index].name);
     setBitInRange(super_block->free_block_list, start, start+size-1, 0);
-    memset(super_block->inode[index].name, 0, sizeof(super_block->inode[index].name));
+    memset(super_block->inode[index].name, 0, 5);
     super_block->inode[index].used_size = 0;
     super_block->inode[index].start_block = 0;
     super_block->inode[index].dir_parent = 0;
 }
 
 void delete_empty_dir(int index) {
-    printf("Deleting empty dir %s\n", super_block->inode[index].name);
-    memset(super_block->inode[index].name, 0, sizeof(super_block->inode[index].name));
+    printf("Deleting empty dir %.5s\n", super_block->inode[index].name);
+    memset(super_block->inode[index].name, 0, 5);
     super_block->inode[index].used_size = 0;
     super_block->inode[index].start_block = 0;
     super_block->inode[index].dir_parent = 0;
@@ -95,7 +95,7 @@ void fs_mount(char *new_disk_name) {
     fclose(fp);
 
     // check consistancy 1  
-    char *binary_str = (char*) malloc (SizeFreeSpaceList+1); 
+    char *binary_str = (char*) calloc (SizeFreeSpaceList+1, 1); 
     for (int i=0; i<SizeFreeSpaceList; i++) {
         if (i==0) {
             strcat(binary_str, "1");
@@ -209,7 +209,7 @@ void fs_mount(char *new_disk_name) {
     super_block = new_super_block;
     Current_info *temp_info = (Current_info*) malloc (sizeof(Current_info));
     temp_info->current_dir = 127;
-    char *current_diskname = malloc (sizeof(new_disk_name)+1);
+    char *current_diskname = calloc (sizeof(new_disk_name)+1 ,1);
     strcpy(current_diskname, new_disk_name);
     temp_info->current_diskname = current_diskname;
     current_info = temp_info;
@@ -231,7 +231,7 @@ void fs_create(char name[5], int size) {
         }
     }
 
-    // printf("Inode index: %d\n", index);
+    printf("Inode index: %d\n", index);
 
     if (index == -1) {
         fprintf(stderr, "Error: Superblock in disk %s is full, cannot create %s\n", current_info->current_diskname, name);
@@ -260,7 +260,9 @@ void fs_create(char name[5], int size) {
     if (size == 0) {
         printf("%s\n",stringToBinary(super_block->free_block_list));
         //name
-        memcpy(super_block->inode[index].name, name, strlen(name));
+        // memcpy(super_block->inode[index].name, name, 5);
+        strncpy(super_block->inode[index].name, name, sizeof(super_block->inode[index].name));
+        // sprintf(super_block->inode[index].name, "%.5s", name);
         printf("name: %s\n", super_block->inode[index].name);
         //use size
         super_block->inode[index].used_size = setHighestBit(super_block->inode[index].used_size);
@@ -306,12 +308,13 @@ void fs_create(char name[5], int size) {
     
     // set bits in free_block_list
     setBitInRange(super_block->free_block_list, start, end-1, 1);
-    printf("%s\n",stringToBinary(super_block->free_block_list));
+    // printf("%s\n",stringToBinary(super_block->free_block_list));
     // printf("sizeblock: %lu, available: %d, start: %d, end: %d, index: %d\n", strlen(binary_str), has_abaliable_block, start, end, index);
     free(binary_str);
     
     //name
-    memcpy(super_block->inode[index].name, name, strlen(name));
+    // memcpy(super_block->inode[index].name, name, 5);
+    strncpy(super_block->inode[index].name, name, sizeof(super_block->inode[index].name));
     printf("name: %s\n", super_block->inode[index].name);
     //user size
     super_block->inode[index].used_size = size;
@@ -340,6 +343,9 @@ void fs_delete(char name[5]) {
     int index = -1;
     for (int i=0; i<SizeInode; i++) {
         if (strncmp(super_block->inode[i].name, name, 5) == 0){
+            // printf("%s %s\n", super_block->inode[i].name, name);
+            // printf("len: %lu\n", sizeof(super_block->inode[i].name));
+            // printf("%d\n",i);
             index = i;
             break;
         }
@@ -436,21 +442,48 @@ void fs_ls(void) {
         fprintf(stderr,"Error: No file system is mounted\n");
         return;
     }
+    // printf("%s\n",stringToBinary(super_block->free_block_list));
     int *indexes = getChildIndex_handler(current_info->current_dir);
-    for (int i=0; indexes[i] != -1; i++) {
-        if (isHighestBitSet(super_block->inode[i].dir_parent)) {
+    if (current_info->current_dir == 127) {
+        // root
+        int num = 2;
+        for (uint8_t i=0; indexes[i] != -1; i++) {
+            num += 1;
+        }
+        printf(".     %3d\n", num);
+        printf("..    %3d\n", num);
+    } else {
+        // get parent of current_dir
+        uint8_t partent_dir = getSizeBit(super_block->inode[current_info->current_dir].dir_parent);
+        int *idxes = getChildIndex_handler(partent_dir);
+        int num_parent = 2;
+        int num_current = 2;
+        for (uint8_t i=0; idxes[i] != -1; i++) {
+            num_parent += 1;
+        }
+        for (uint8_t i=0; indexes[i] != -1; i++) {
+            num_current += 1;
+        }
+        printf("     %3d\n", num_current);
+        printf("..    %3d\n", num_parent);
+        free(idxes);
+    }
+
+    for (uint8_t i=0; indexes[i] != -1; i++) {
+        if (isHighestBitSet(super_block->inode[indexes[i]].dir_parent)) {
             // dir
             int num_child = 2;
-            int *idx = getChildIndex_handler(getSizeBit(super_block->inode[i].dir_parent));
-            for (int j=0; idx[j] != -1; j++) {
-                if (isHighestBitSet(super_block->inode[j].dir_parent)) {
+            int *idxes = getChildIndex_handler(i);
+            for (int j=0; idxes[j] != -1; j++) {
+                if (isHighestBitSet(super_block->inode[idxes[j]].dir_parent)) {
                     num_child += 1;
                 }
             }
-            printf("%-5s %3d\n", super_block->inode[i].name, num_child);
+            free(idxes);
+            printf("%-5.5s %3d\n", super_block->inode[indexes[i]].name, num_child);
         } else {
-            printf("%-5s %3d KB\n", super_block->inode[i].name, getSizeBit(super_block->inode[i].used_size));
+            printf("%-5.5s %3d KB\n", super_block->inode[indexes[i]].name, getSizeBit(super_block->inode[indexes[i]].used_size));
         }
     }
-
+    free(indexes);
 }
