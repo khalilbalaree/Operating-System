@@ -76,6 +76,21 @@ int analyze_command(char **args, char *line) {
             return 0;
         }
         fs_ls();
+    } else if (strcmp(args[0], "Y") == 0) {
+        if (size_args != 2) {
+            return 0;
+        }
+        fs_cd(args[1]);
+    } else if (strcmp(args[0], "E") == 0) {
+        if (size_args != 3) {
+            return 0;
+        }
+        fs_resize(args[1], strtol(args[2], (char **)NULL, 10));
+    } else if (strcmp(args[0], "O") == 0) {
+        if (size_args != 1) {
+            return 0;
+        }
+        fs_defrag();
     }
 
     return 1;

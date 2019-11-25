@@ -17,7 +17,7 @@ char *stringToBinary(char *s) {
     return binary;
 }
 
-bool isHighestBitSet(uint8_t num){
+bool isHighestBitSet(uint8_t num) {
     return 1 == ((num >> 7) & 1U);
 }
 
