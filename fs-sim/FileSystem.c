@@ -245,7 +245,7 @@ void fs_create(char name[5], int size) {
     for (int i=0; indexes[i] != -1; i++) {
         // printf("filename: %d %s\n", i, super_block->inode[i].name);
         //ref: https://stackoverflow.com/questions/18437430/comparing-non-null-terminated-char-arrays
-        if (strncmp(super_block->inode[i].name, name, 5) == 0){
+        if (strncmp(super_block->inode[indexes[i]].name, name, 5) == 0){
             fprintf(stderr, "Error: File or directory %s already exists\n",name);
             free(indexes);
             return;
@@ -509,7 +509,7 @@ void fs_cd(char name[5]) {
     int *indexes = getChildIndex_handler(current_info->current_dir);
     for (uint8_t i=0; indexes[i] != -1; i++) {
         if ((strncmp(super_block->inode[indexes[i]].name, name, 5) == 0) 
-            && (isHighestBitSet(super_block->inode[i].dir_parent))) {
+            && (isHighestBitSet(super_block->inode[indexes[i]].dir_parent))) {
             current_info->current_dir = indexes[i];
             printf("cd to dir: %.5s\n", super_block->inode[current_info->current_dir].name);
             free(indexes);
@@ -547,9 +547,8 @@ void fs_resize(char name[5], int new_size) {
         setBitInRange(super_block->free_block_list, start+new_size, start+size-1, 0);
         super_block->inode[index].used_size = new_size;
         super_block->inode[index].used_size = setHighestBit(super_block->inode[index].used_size);
-        // leave the data block unchanged
-
-        
+        // leave the data block unchanged ?
+  
 
     } else if (new_size == getSizeBit(super_block->inode[index].used_size)) {
         return;
@@ -670,5 +669,6 @@ void fs_defrag(void) {
             start += 1;
         }    
     }
+    // saveSuperBlock();
     printf("After defraging: %s\n",stringToBinary(super_block->free_block_list));
 }
