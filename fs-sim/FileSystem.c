@@ -131,7 +131,7 @@ void fs_mount(char *new_disk_name) {
     for (int i=0; i<SizeInode; i++) {
         for (int j=i+1; j<SizeInode; j++) {
             if (isHighestBitSet(new_super_block->inode[i].used_size) && isHighestBitSet(new_super_block->inode[j].used_size)
-                && (strcmp(new_super_block->inode[i].name, new_super_block->inode[j].name) == 0) 
+                && (strncmp(new_super_block->inode[i].name, new_super_block->inode[j].name, 5) == 0) 
                 && (getSizeBit(new_super_block->inode[i].dir_parent) == getSizeBit(new_super_block->inode[j].dir_parent))) {
                     fprintf(stderr,"Error: File system in %s is inconsistent (error code: 2)\n", new_disk_name);
                     free(new_super_block);
@@ -142,20 +142,29 @@ void fs_mount(char *new_disk_name) {
 
     // check consistancy 3
     for (int i=0; i<SizeInode; i++) {
+        // not used
         if (!isHighestBitSet(new_super_block->inode[i].used_size) 
             && new_super_block->inode[i].dir_parent == 0
             && new_super_block->inode[i].start_block == 0
             && new_super_block->inode[i].used_size == 0) {
-                continue;
-        } else if (isHighestBitSet(new_super_block->inode[i].used_size)
-            && (strlen(new_super_block->inode[i].name) != 0)){
+                for (int j=0; j<5; j++) {
+                    if (new_super_block->inode[i].name[j] != 0) {
+                        fprintf(stderr,"Error: File system in %s is inconsistent (error code: 3)\n", new_disk_name);
+                        free(new_super_block);
+                        return;
+                    }
+                }
+        // used
+        } else if (isHighestBitSet(new_super_block->inode[i].used_size)) {
+            if (strncmp(new_super_block->inode[i].name, "", 5) != 0){
                 // TODO: check bits
                 continue;
-        } else {
-            fprintf(stderr,"Error: File system in %s is inconsistent (error code: 3)\n", new_disk_name);
-            free(new_super_block);
-            return;
-        }     
+            } else {
+                fprintf(stderr,"Error: File system in %s is inconsistent (error code: 3)\n", new_disk_name);
+                free(new_super_block);
+                return;
+            }
+        }   
     }
 
     // check consistancy 4
@@ -170,12 +179,10 @@ void fs_mount(char *new_disk_name) {
 
     // check consistancy 5
     for (int i=0; i<SizeInode; i++) {
-        if (!isHighestBitSet(new_super_block->inode[i].used_size)){
+        if (isHighestBitSet(new_super_block->inode[i].used_size)
+            && (isHighestBitSet(new_super_block->inode[i].dir_parent))){
             if ((getSizeBit(new_super_block->inode[i].used_size) == 0)
                 && (new_super_block->inode[i].start_block == 0)) {
-                    continue;
-            } else if ((getSizeBit(new_super_block->inode[i].used_size) != 0)
-                && (new_super_block->inode[i].start_block != 0)) {
                     continue;
             } else {
                 fprintf(stderr,"Error: File system in %s is inconsistent (error code: 5)\n", new_disk_name);
