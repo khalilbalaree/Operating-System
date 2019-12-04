@@ -5,7 +5,7 @@ C test1 20
 C testerror 4
 C error
 L 4
-M disk0
+M clean_disk
 L
 W test
 W test 0

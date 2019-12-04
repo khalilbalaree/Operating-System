@@ -38,16 +38,27 @@ void delete_file_handler(int index) {
     int start = super_block->inode[index].start_block;
     int size = getSizeBit(super_block->inode[index].used_size);
     // printf("%d %d\n",start, start+size-1);
-    printf("Deleting file %.5s\n", super_block->inode[index].name);
+    // printf("Deleting file %.5s\n", super_block->inode[index].name);
+
+    // delete data block
+    uint8_t b[1024*size];
+    memset(b, 0, sizeof(b));
+    FILE *fp = fopen(current_info->current_diskname, "rb+");
+    fseek(fp, start * SizeKB, SEEK_SET);
+    fwrite(&b, sizeof(b), 1, fp);
+    fclose(fp);  
+
+    // unset inode
     setBitInRange(super_block->free_block_list, start, start+size-1, 0);
     memset(super_block->inode[index].name, 0, 5);
     super_block->inode[index].used_size = 0;
     super_block->inode[index].start_block = 0;
-    super_block->inode[index].dir_parent = 0;
+    super_block->inode[index].dir_parent = 0;  
+
 }
 
 void delete_empty_dir(int index) {
-    printf("Deleting dir %.5s\n", super_block->inode[index].name);
+    // printf("Deleting dir %.5s\n", super_block->inode[index].name);
     memset(super_block->inode[index].name, 0, 5);
     super_block->inode[index].used_size = 0;
     super_block->inode[index].start_block = 0;
@@ -73,7 +84,11 @@ void delete_dir_handler(int index) {
 void saveSuperBlock(void) {
     FILE *fp = fopen(current_info->current_diskname, "rb+");
     fwrite(&super_block->free_block_list, sizeof(super_block->free_block_list), 1, fp);
+    // fseek(fp, sizeof(super_block->free_block_list), SEEK_SET);
+    // printf("location %ld\n", ftell(fp));
     fwrite(&super_block->inode, sizeof(super_block->inode), 1, fp);
+    // printf("location %ld\n", ftell(fp));
+    // printf("sizeofinode %lu\n", sizeof(super_block->inode));
     fclose(fp);
 }
 
@@ -117,8 +132,6 @@ void fs_mount(char *new_disk_name) {
         }
     }
     char *binary_free_list = stringToBinary(new_super_block->free_block_list);
-    // printf("freelist: %s\n", binary_free_list);
-    // printf("inode: %s\n", binary_str);
     if (strcmp(binary_free_list, binary_str) != 0) {
         fprintf(stderr,"Error: File system in %s is inconsistent (error code: 1)\n", new_disk_name);
         free(binary_str);
@@ -126,6 +139,8 @@ void fs_mount(char *new_disk_name) {
         free(new_super_block);
         return;
     }
+    free(binary_str);
+    free(binary_free_list);
 
     // check consistancy 2
     for (int i=0; i<SizeInode; i++) {
@@ -210,7 +225,14 @@ void fs_mount(char *new_disk_name) {
     }
 
     // init global var
+    if (super_block) {
+        free(super_block);
+    }
     super_block = new_super_block;
+
+    if (current_info) {
+        free(current_info);
+    }
     Current_info *temp_info = (Current_info*) malloc (sizeof(Current_info));
     temp_info->current_dir = 127;
     char *current_diskname = calloc (sizeof(new_disk_name)+1 ,1);
@@ -243,8 +265,8 @@ void fs_create(char name[5], int size) {
     }
 
     // check name
-    if ((strcmp(name, ".") == 0) || (strcmp(name,"..") == 0 || strlen(name) == 0 || strlen(name) > 5)) {
-        fprintf(stderr, "Error: File or directory %s name is invalid\n",name);
+    if ((strcmp(name, ".") == 0) || (strcmp(name,"..") == 0 )) {
+        fprintf(stderr, "Error: File or directory %s already exists\n",name);
         return;
     }
 
@@ -262,29 +284,29 @@ void fs_create(char name[5], int size) {
     
     // create dir
     if (size == 0) {
-        printf("%s\n",stringToBinary(super_block->free_block_list));
+        // printf("%s\n",stringToBinary(super_block->free_block_list));
         //name
         // memcpy(super_block->inode[index].name, name, 5);
-        strncpy(super_block->inode[index].name, name, sizeof(super_block->inode[index].name));
+        strncpy(super_block->inode[index].name, name, 5);
         // sprintf(super_block->inode[index].name, "%.5s", name);
-        printf("name: %s\n", super_block->inode[index].name);
+        // printf("name: %s\n", super_block->inode[index].name);
         //use size
         super_block->inode[index].used_size = setHighestBit(super_block->inode[index].used_size);
-        printf("use size: %d\n", super_block->inode[index].used_size);
+        // printf("use size: %d\n", super_block->inode[index].used_size);
         //atart block
         super_block->inode[index].start_block = 0;
-        printf("start block: %d\n", super_block->inode[index].start_block);
+        // printf("start block: %d\n", super_block->inode[index].start_block);
         // dir_parent
         super_block->inode[index].dir_parent = current_info->current_dir;
         super_block->inode[index].dir_parent = setHighestBit(super_block->inode[index].dir_parent);
-        printf("dir_parent: %d\n", super_block->inode[index].dir_parent);
+        // printf("dir_parent: %d\n", super_block->inode[index].dir_parent);
 
-        // saveSuperBlock();
+        saveSuperBlock();
         return;
 
     }
     // check available block
-    int start = 0; // inclusive
+    int start = 1; // inclusive
     int end = start + size; // exclusive
     int has_abaliable_block = 0;
     char *binary_str = stringToBinary(super_block->free_block_list);
@@ -305,7 +327,7 @@ void fs_create(char name[5], int size) {
         }     
     }
 
-    printf("%s\n",stringToBinary(super_block->free_block_list));
+    // printf("%s\n",stringToBinary(super_block->free_block_list));
     free(binary_str);
 
     if (has_abaliable_block == 0) {
@@ -317,21 +339,21 @@ void fs_create(char name[5], int size) {
     setBitInRange(super_block->free_block_list, start, end-1, 1);   
     //name
     // memcpy(super_block->inode[index].name, name, 5);
-    strncpy(super_block->inode[index].name, name, sizeof(super_block->inode[index].name));
-    printf("name: %s\n", super_block->inode[index].name);
+    strncpy(super_block->inode[index].name, name, 5);
+    // printf("name: %s\n", super_block->inode[index].name);
     //user size
     super_block->inode[index].used_size = size;
     super_block->inode[index].used_size = setHighestBit(super_block->inode[index].used_size);
-    printf("use size: %d\n", super_block->inode[index].used_size);
+    // printf("use size: %d\n", super_block->inode[index].used_size);
     // start block
     super_block->inode[index].start_block = start;
-    printf("start block: %d\n", super_block->inode[index].start_block);
+    // printf("start block: %d\n", super_block->inode[index].start_block);
     // dir_parent
     super_block->inode[index].dir_parent = current_info->current_dir;
-    printf("dir_parent: %d\n", super_block->inode[index].dir_parent);
+    // printf("dir_parent: %d\n", super_block->inode[index].dir_parent);
 
     // save
-    // saveSuperBlock();
+    saveSuperBlock();
 
     return;   
 }
@@ -346,9 +368,6 @@ void fs_delete(char name[5]) {
     int index = -1;
     for (int i=0; i<SizeInode; i++) {
         if (strncmp(super_block->inode[i].name, name, 5) == 0){
-            // printf("%s %s\n", super_block->inode[i].name, name);
-            // printf("len: %lu\n", sizeof(super_block->inode[i].name));
-            // printf("%d\n",i);
             index = i;
             break;
         }
@@ -360,7 +379,7 @@ void fs_delete(char name[5]) {
 
     delete_dir_handler(index);
     // save
-    // saveSuperBlock();
+    saveSuperBlock();
 }
 
 
@@ -391,11 +410,11 @@ void fs_read(char name[5], int block_num) {
     }
     int start = super_block->inode[index].start_block;
     int real_block = start + block_num;
-    printf("real block read: %d\n", real_block);
+    // printf("real block read: %d\n", real_block);
     FILE *fp = fopen(current_info->current_diskname, "rb");
     fseek(fp, real_block * SizeKB, SEEK_SET);
-    fread(current_info->buffer, sizeof(current_info->buffer), 1, fp);
-    printf("%s\n", current_info->buffer);
+    fread(&current_info->buffer, sizeof(current_info->buffer), 1, fp);
+    // printf("%s\n", current_info->buffer);
     fclose(fp);
 }
 
@@ -425,20 +444,31 @@ void fs_write(char name[5], int block_num) {
     }
     int start = super_block->inode[index].start_block;
     int real_block = start + block_num;
-    printf("real block write: %d\n", real_block);
+    // printf("real block write: %d\n", real_block);
     // printf("%s\n", current_info->buffer);
     FILE *fp = fopen(current_info->current_diskname, "rb+");
     fseek(fp, real_block * SizeKB, SEEK_SET);
-    fwrite(current_info->buffer, sizeof(current_info->buffer), 1, fp);
+    // printf("location %ld\n", ftell(fp));
+    fwrite(&current_info->buffer, sizeof(current_info->buffer), 1, fp);
+    // printf("location %ld\n", ftell(fp));
+    // printf("sizeofbuff: %lu\n", sizeof(current_info->buffer));
     fclose(fp);
 }
+
 
 void fs_buff(uint8_t buff[1024]) {
     if (super_block == NULL) {
         fprintf(stderr,"Error: No file system is mounted\n");
         return;
     }
-    memcpy(current_info->buffer, buff, 1024 * sizeof(uint8_t));
+    memset(current_info->buffer, 0, sizeof(current_info->buffer));
+
+    int i = 0;
+    while (buff[i] != '\0') {
+        current_info->buffer[i] = buff[i];
+        i++;
+    }
+    // printf("%s\n", current_info->buffer);
 }
 
 void fs_ls(void) {
@@ -518,7 +548,7 @@ void fs_cd(char name[5]) {
         if ((strncmp(super_block->inode[indexes[i]].name, name, 5) == 0) 
             && (isHighestBitSet(super_block->inode[indexes[i]].dir_parent))) {
             current_info->current_dir = indexes[i];
-            printf("cd to dir: %.5s\n", super_block->inode[current_info->current_dir].name);
+            // printf("cd to dir: %.5s\n", super_block->inode[current_info->current_dir].name);
             free(indexes);
             return; 
         }
@@ -555,14 +585,31 @@ void fs_resize(char name[5], int new_size) {
         super_block->inode[index].used_size = new_size;
         super_block->inode[index].used_size = setHighestBit(super_block->inode[index].used_size);
         // leave the data block unchanged ?
-  
+        
+        // delete extra data block
+        uint8_t b[1024*(size-new_size)];
+        memset(b, 0, sizeof(b));
+        FILE *fp = fopen(current_info->current_diskname, "rb+");
+        // write
+        fseek(fp, (start+new_size) * SizeKB, SEEK_SET);
+        fwrite(&b, sizeof(b), 1, fp);
+        fclose(fp);
+
 
     } else if (new_size == getSizeBit(super_block->inode[index].used_size)) {
         return;
     } else {
         // expand blocks
-        int isFree = true;
+        bool isFree = true;
         char *binary = stringToBinary(super_block->free_block_list);
+
+        // fix bug
+        if (start+new_size > SizeFreeSpaceList) {
+            fprintf(stderr, "Error: File %s cannot expand to size %d\n", name, new_size);
+            free(binary);
+            return;
+        }
+
         for (uint8_t i=start+size; i<start+new_size; i++) {
             if (binary[i] == '1') {
                 isFree = false;
@@ -580,7 +627,7 @@ void fs_resize(char name[5], int new_size) {
         } else {
             // printf("Not Free\n");
             // looking for blocks
-            int new_start = 0; // inclusive
+            int new_start = 1; // inclusive
             int new_end = new_start + new_size; // exclusive
             int has_abaliable_block = 0;
             char *binary_str = stringToBinary(super_block->free_block_list);
@@ -602,6 +649,7 @@ void fs_resize(char name[5], int new_size) {
             }
             
             free(binary_str);
+
             if (has_abaliable_block == 0) {
                 fprintf(stderr, "Error: File %s cannot expand to size %d\n", name, new_size);
                 return;
@@ -622,15 +670,20 @@ void fs_resize(char name[5], int new_size) {
             uint8_t b[1024*size];
             FILE *fp = fopen(current_info->current_diskname, "rb+");
             fseek(fp, start * SizeKB, SEEK_SET);
-            fread(b, sizeof(b), 1, fp);
+            fread(&b, sizeof(b), 1, fp);
             // write
             fseek(fp, new_start * SizeKB, SEEK_SET);
-            fwrite(b, sizeof(b), 1, fp);
-            fclose(fp);           
+            fwrite(&b, sizeof(b), 1, fp);
+               
+            // delete orig data block
+            memset(b, 0, sizeof(b));
+            fseek(fp, start * SizeKB, SEEK_SET);
+            fwrite(&b, sizeof(b), 1, fp);
+            fclose(fp); 
         }
     }
-    // saveSuperBlock();
-    printf("After resizing: %s\n",stringToBinary(super_block->free_block_list));
+    saveSuperBlock();
+    // printf("After resizing: %s\n",stringToBinary(super_block->free_block_list));
 }
 
 
@@ -656,18 +709,23 @@ void fs_defrag(void) {
             int size = getSizeBit(super_block->inode[inode_index].used_size);
             setBitInRange(super_block->free_block_list, start, start+size-1, 0); 
 
-            // read
-            uint8_t b[1024*size];
-            FILE *fp = fopen(current_info->current_diskname, "rb+");
-            fseek(fp, start * SizeKB, SEEK_SET);
-            fread(b, sizeof(b), 1, fp);
-
             super_block->inode[inode_index].start_block = next_start;
             setBitInRange(super_block->free_block_list, next_start, next_start+size-1, 1);  
 
-            // write
+            // delete data block
+            uint8_t hold_copy[1024*size];
+            uint8_t empty[1024*size];
+            memset(empty, 0, sizeof(empty));
+            FILE *fp = fopen(current_info->current_diskname, "rb+");
+            // copy blocks
+            fseek(fp, start * SizeKB, SEEK_SET);
+            fread(&hold_copy, sizeof(hold_copy), 1, fp);
+            // erase blocks
+            fseek(fp, start * SizeKB, SEEK_SET);
+            fwrite(&empty, sizeof(empty), 1, fp);
+            // move blocks
             fseek(fp, next_start * SizeKB, SEEK_SET);
-            fwrite(b, sizeof(b), 1, fp);
+            fwrite(&hold_copy, sizeof(hold_copy), 1, fp);
             fclose(fp);
 
             next_start += size;
@@ -676,6 +734,17 @@ void fs_defrag(void) {
             start += 1;
         }    
     }
-    // saveSuperBlock();
-    printf("After defraging: %s\n",stringToBinary(super_block->free_block_list));
+    free(binary_str);
+    saveSuperBlock();
+    // printf("After defraging: %s\n",stringToBinary(super_block->free_block_list));
+}
+
+void freeEverything(void) {
+    if (super_block) {
+        free(super_block);
+    }
+    if (current_info) {
+        free(current_info->current_diskname);
+        free(current_info);
+    }  
 }
