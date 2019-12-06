@@ -1,3 +1,4 @@
 M disk0
 C file1 120
-E file1 128
+E file1 10
+C . 0
